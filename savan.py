@@ -2,25 +2,17 @@ import sys
 import os
 import subprocess
 import time
-import requests
+import shutil
 
-# ==== Linode デプロイ ====
-def deploy_linode(file_path):
-    print(f"[SAVAN] デプロイ開始: {file_path}")
-    print(f"[SAVAN] sys.argv: {sys.argv}")
-    print(f"[SAVAN] file_path: {file_path}")
+# -----------------------------
+# 内蔵テンプレート
+# -----------------------------
+IINA_TEMPLATE = """print("Hello from IINA generated app!")"""
+CLICKDPLY_TEMPLATE = """print("Hello from 1ClickDply generated app!")"""
 
-    # 実運用ではここを docker / ssh / scp / systemctl などで置き換え
-    # subprocess.run([...])
-    
-    linode_ip = "123.45.67.89"  # 仮 IP
-    app_name = os.path.basename(file_path)
-    deployed_url = f"http://{linode_ip}:5000/{app_name}"
-    
-    print(f"[SAVAN] Linode 短時間公開完了: {deployed_url}")
-    return deployed_url
-
-# ==== アプリ自動生成 ====
+# -----------------------------
+# 生成処理
+# -----------------------------
 def generate_apps():
     apps_dir = "generated_apps"
     os.makedirs(apps_dir, exist_ok=True)
@@ -29,15 +21,17 @@ def generate_apps():
     clickdply_file = os.path.join(apps_dir, f"clickdply_app_{timestamp}.py")
 
     with open(iina_file, "w") as f:
-        f.write('print("Hello from IINA generated app!")\n')
+        f.write(IINA_TEMPLATE)
     with open(clickdply_file, "w") as f:
-        f.write('print("Hello from 1ClickDply generated app!")\n')
+        f.write(CLICKDPLY_TEMPLATE)
 
     print(f"[SAVAN] 自動生成完了: {iina_file}")
     print(f"[SAVAN] 自動生成完了: {clickdply_file}")
     return iina_file, clickdply_file
 
-# ==== 簡易テスト ====
+# -----------------------------
+# テスト処理
+# -----------------------------
 def test_app(file_path):
     try:
         result = subprocess.run(["python", file_path], capture_output=True, text=True, timeout=10)
@@ -47,33 +41,43 @@ def test_app(file_path):
         print(f"[SAVAN] テスト失敗: {file_path}, {e}")
         return False
 
-# ==== GitHub push ====
-def push_github(commit_message="Update generated apps"):
+# -----------------------------
+# Linode デプロイ
+# -----------------------------
+def deploy_linode(file_path):
+    print(f"[SAVAN] デプロイ開始: {file_path}")
+    linode_ip = "123.45.67.89"  # 仮 IP
+    app_name = os.path.basename(file_path)
+    deployed_url = f"http://{linode_ip}:5000/{app_name}"
+    print(f"[SAVAN] Linode 短時間公開完了: {deployed_url}")
+    return deployed_url
+
+# -----------------------------
+# GitHub push
+# -----------------------------
+def github_push():
     print("[SAVAN] GitHub push 開始")
     try:
         subprocess.run(["git", "add", "."], check=True)
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
-        subprocess.run(["git", "push"], check=True)
+        subprocess.run(["git", "commit", "-m", "SAVAN automated commit"], check=True)
+        subprocess.run(["git", "push", "origin", "main"], check=True)
         print("[SAVAN] GitHub push 完了")
     except subprocess.CalledProcessError as e:
         print(f"[SAVAN] GitHub push 失敗: {e}")
 
-# ==== 全自動生成・テスト・デプロイ ====
+# -----------------------------
+# 一括生成・テスト・デプロイ
+# -----------------------------
 def deploy_and_test_all():
     iina_file, clickdply_file = generate_apps()
     for app_file in [iina_file, clickdply_file]:
         test_app(app_file)
         deploy_linode(app_file)
-    # 最後に GitHub push
-    push_github()
+    github_push()
 
-# ==== 単体ファイルの Linode デプロイ ====
-def deploy_single_file(file_path):
-    test_app(file_path)
-    deploy_linode(file_path)
-    push_github(f"Deploy {os.path.basename(file_path)}")
-
-# ==== CLI ==== 
+# -----------------------------
+# コマンド実行
+# -----------------------------
 if __name__ == "__main__":
     if "--deploy-all-and-test" in sys.argv:
         deploy_and_test_all()
@@ -82,4 +86,4 @@ if __name__ == "__main__":
     elif "--deploy-linode" in sys.argv and "--file" in sys.argv:
         idx = sys.argv.index("--file") + 1
         file_path = sys.argv[idx]
-        deploy_single_file(file_path)
+        deploy_linode(file_path)
