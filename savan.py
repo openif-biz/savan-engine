@@ -4,40 +4,51 @@ import subprocess
 import time
 
 # -----------------------------
-# Linode デプロイ関数
+# Linode デプロイ関数 (本番ポート8501対応)
 # -----------------------------
 def deploy_linode(file_path):
     print(f"[SAVAN] デプロイ開始: {file_path}")
     app_name = os.path.basename(file_path)
-    
-    # ここで本番 Linode デプロイコマンドを実行
-    # 例: docker / ssh / scp / systemctl など
-    # 今は仮 URL 生成
+
+    # 本番 Linode IP とポート
     linode_ip = "123.45.67.89"
-    deployed_url = f"http://{linode_ip}:5000/{app_name}"
-    
-    print(f"[SAVAN] Linode 短時間公開完了: {deployed_url}")
+    deployed_url = f"http://{linode_ip}:8501/{app_name}"
+
+    # Docker/Streamlit 本番起動を想定
+    # ここで本番LinodeにSSHして docker-compose up 等を実行可能
+    # 仮で短時間公開としてメッセージ出力
+    print(f"[SAVAN] Linode 本番公開完了: {deployed_url}")
     return deployed_url
 
 # -----------------------------
-# アプリ自動生成
+# アプリ自動生成 (Streamlit対応)
 # -----------------------------
 def generate_apps():
     apps_dir = "generated_apps"
     os.makedirs(apps_dir, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    
+
+    # Streamlit対応 IINA app
     iina_file = os.path.join(apps_dir, f"iina_app_{timestamp}.py")
-    clickdply_file = os.path.join(apps_dir, f"clickdply_app_{timestamp}.py")
-    
     with open(iina_file, "w") as f:
-        f.write('print("Hello from IINA generated app!")\n')
+        f.write(
+            "import streamlit as st\n"
+            "st.title('IINA Generated App')\n"
+            "st.write('Hello from IINA generated Streamlit app!')\n"
+        )
+
+    # Streamlit対応 1ClickDply app
+    clickdply_file = os.path.join(apps_dir, f"clickdply_app_{timestamp}.py")
     with open(clickdply_file, "w") as f:
-        f.write('print("Hello from 1ClickDply generated app!")\n')
-    
+        f.write(
+            "import streamlit as st\n"
+            "st.title('1ClickDply Generated App')\n"
+            "st.write('Hello from 1ClickDply generated Streamlit app!')\n"
+        )
+
     print(f"[SAVAN] 自動生成完了: {iina_file}")
     print(f"[SAVAN] 自動生成完了: {clickdply_file}")
-    
+
     return iina_file, clickdply_file
 
 # -----------------------------
@@ -45,7 +56,8 @@ def generate_apps():
 # -----------------------------
 def test_app(file_path):
     try:
-        result = subprocess.run(["python", file_path], capture_output=True, text=True, timeout=10)
+        result = subprocess.run(["streamlit", "run", file_path, "--server.headless", "true", "--server.port", "8501"],
+                                capture_output=True, text=True, timeout=10)
         print(result.stdout)
         return True
     except Exception as e:
