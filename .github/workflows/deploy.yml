@@ -1,8 +1,9 @@
-name: SAVAN Deployment
+name: Deploy to Linode
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main   # main ブランチに push されたらデプロイ
 
 jobs:
   deploy:
@@ -10,18 +11,25 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Copy files to Linode
+        uses: appleboy/scp-action@v0.1.7
         with:
-          python-version: "3.11"
+          host: ${{ secrets.LINODE_HOST }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "."
+          target: "/opt/savan"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flask requests
+      - name: Restart with Docker Compose
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.LINODE_HOST }}
+          username: root
+          key: ${{ secrets.LINODE_SSH_KEY }}
+          script: |
+            cd /opt/savan
+            docker-compose down
+            docker-compose up -d --build
 
-      - name: Run SAVAN deploy
-        run: |
-          python savan.py --deploy-all-and-test
