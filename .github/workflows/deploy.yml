@@ -1,35 +1,19 @@
-name: Deploy to Linode
+- name: Copy files to Linode
+  uses: appleboy/scp-action@v0.1.7
+  with:
+    host: ${{ secrets.LINODE_HOST }}
+    username: root
+    key: ${{ secrets.LINODE_SSH_KEY }}
+    source: "."
+    target: "/opt/savan"
 
-on:
-  push:
-    branches:
-      - main   # main ブランチに push されたらデプロイ
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Copy files to Linode
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.LINODE_HOST }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "."
-          target: "/opt/savan"
-
-      - name: Restart with Docker Compose
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ secrets.LINODE_HOST }}
-          username: root
-          key: ${{ secrets.LINODE_SSH_KEY }}
-          script: |
-            cd /opt/savan
-            docker-compose down
-            docker-compose up -d --build
-
+- name: Restart with Docker Compose
+  uses: appleboy/ssh-action@v0.1.10
+  with:
+    host: ${{ secrets.LINODE_HOST }}
+    username: root
+    key: ${{ secrets.LINODE_SSH_KEY }}
+    script: |
+      cd /opt/savan
+      docker-compose down
+      docker-compose up -d --build
