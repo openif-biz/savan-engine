@@ -1,19 +1,42 @@
-- name: Copy files to Linode
-  uses: appleboy/scp-action@v0.1.7
-  with:
-    host: ${{ secrets.LINODE_HOST }}
-    username: root
-    key: ${{ secrets.LINODE_SSH_KEY }}
-    source: "."
-    target: "/opt/savan"
+# ワークフロー全体の名前
+name: SAVAN Deploy to Linode
 
-- name: Restart with Docker Compose
-  uses: appleboy/ssh-action@v0.1.10
-  with:
-    host: ${{ secrets.LINODE_HOST }}
-    username: root
-    key: ${{ secrets.LINODE_SSH_KEY }}
-    script: |
-      cd /opt/savan
-      docker-compose down
-      docker-compose up -d --build
+# ワークフローを実行するきっかけ（トリガー）
+on:
+  push:
+    branches:
+      - main  # mainブランチにpushされた時だけ実行
+
+# 実行する仕事（ジョブ）の内容
+jobs:
+  deploy:
+    # ジョブを実行する仮想環境の種類
+    runs-on: ubuntu-latest
+
+    # ジョブのステップ（実際の作業内容）
+    steps:
+      # ステップ1: リポジトリのコードを仮想環境にチェックアウトする（必須の準備）
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ステップ2: Linodeサーバーにファイルをコピーする（元のコード）
+      - name: Copy files to Linode
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.LINODE_HOST }}
+          username: root
+          key: ${{ secrets.LINODE_SSH_KEY }}
+          source: "."
+          target: "/opt/savan"
+
+      # ステップ3: Docker Composeで再起動する（元のコード）
+      - name: Restart with Docker Compose
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.LINODE_HOST }}
+          username: root
+          key: ${{ secrets.LINODE_SSH_KEY }}
+          script: |
+            cd /opt/savan
+            docker-compose down
+            docker-compose up -d --build
