@@ -1,8 +1,8 @@
 services:
   app:
     build: .
-    container_name: savan_test_app
+    container_name: gantt_line_app
     restart: always
     ports:
       - "8501:8501"
-    command: streamlit run test_app.py --server.port=8501 --server.address=0.0.0.0
+    command: streamlit run gantt_line.py --server.port=8501 --server.address=0.0.0.0

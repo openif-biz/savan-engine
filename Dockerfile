@@ -11,5 +11,5 @@ COPY . /app
 
 EXPOSE 8501
 
-# 起動コマンドをテスト用に変更
-CMD ["streamlit", "run", "test_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# 起動コマンドをGanttLine用に変更
+CMD ["streamlit", "run", "gantt_line.py", "--server.port=8501", "--server.address=0.0.0.0"]
