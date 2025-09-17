@@ -4,13 +4,9 @@ import plotly.figure_factory as ff
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
-# ページの基本設定
 st.set_page_config(layout="wide")
-
-# タイトル
 st.title("Gantt Line 経営タイムライン")
 
-# --- 分析ロジックを関数として定義 ---
 def analyze_payment_data(df):
     contracts = df[df['タスク'] == '契約'][['案件名', '担当者名', '契約金額', '実績終了日']].copy()
     payments = df[df['タスク'] == '入金'][['案件名', '実績終了日']].copy()
@@ -25,78 +21,110 @@ def analyze_payment_data(df):
     analysis_df['契約月'] = analysis_df['契約日'].dt.strftime('%Y-%m')
     return analysis_df.dropna(subset=['契約月'])
 
-# --- ガントチャート描画用の共通関数 ---
-def create_gantt_chart(df, title):
+def create_gantt_chart(df, title="", display_mode="実績のみ"):
     df['案件担当者'] = df['案件名'] + ' - ' + df['担当者名']
-    date_cols = ['実績開始日', '実績終了日']
-    for col in date_cols:
-        df[col] = pd.to_datetime(df[col], errors='coerce')
-    
     task_order = ['契約', '工事', '請求', '入金']
-    df['タスク'] = pd.Categorical(df['タスク'], categories=task_order, ordered=True)
-    df = df.sort_values(by=['案件名', 'タスク'])
-
-    gantt_data = []
-    colors = {'契約': '#DC3545', '工事': '#198754', '請求': '#0D6EFD', '入金': '#FFC107'}
-
-    for i, row in df.iterrows():
-        if pd.notna(row['実績開始日']) and pd.notna(row['実績終了日']):
-            gantt_data.append(dict(
-                Task=row['案件担当者'],
-                Start=row['実績開始日'],
-                Finish=row['実績終了日'],
-                Resource=row['タスク'],
-                Description=f"担当: {row['担当者名']}<br>タスク: {row['タスク']}"
-            ))
     
+    # 【透明度を修正】予定のバーのrgbaの最後の値を0.4に変更
+    colors = {
+        '契約_予定': 'rgba(220, 53, 69, 0.4)', '工事_予定': 'rgba(25, 135, 84, 0.4)', 
+        '請求_予定': 'rgba(13, 110, 253, 0.4)', '入金_予定': 'rgba(255, 193, 7, 0.4)',
+        '契約_実績': 'rgb(220, 53, 69)', '工事_実績': 'rgb(25, 135, 84)', 
+        '請求_実績': 'rgb(13, 110, 253)', '入金_実績': 'rgb(255, 193, 7)'
+    }
+    gantt_data = []
+
+    for name, group in df.groupby(['案件名', '担当者名']):
+        proj_name, assignee_name = name
+        y_label = f"{proj_name} - {assignee_name}"
+        
+        if display_mode == '予実両方':
+            contract_row_df = group[group['タスク'] == '契約']
+            if not contract_row_df.empty:
+                base_date = pd.to_datetime(contract_row_df['実績終了日'].iloc[0], errors='coerce')
+                if pd.notna(base_date):
+                    plan_dates = {
+                        '契約': (base_date, base_date + timedelta(days=1)),
+                        '工事': (base_date + timedelta(days=2), base_date + timedelta(days=1) + relativedelta(months=3)),
+                        '請求': (base_date + timedelta(days=2) + relativedelta(months=3), base_date + timedelta(days=1) + relativedelta(months=4)),
+                        '入金': (base_date + timedelta(days=2) + relativedelta(months=4), base_date + timedelta(days=1) + relativedelta(months=6))
+                    }
+                    for task in task_order:
+                        gantt_data.append(dict(Task=f"{y_label} (予定)", Start=plan_dates[task][0], Finish=plan_dates[task][1], Resource=f"{task}_予定"))
+        
+        for i, row in group.iterrows():
+            s_date = pd.to_datetime(row['実績開始日'], errors='coerce')
+            f_date = pd.to_datetime(row['実績終了日'], errors='coerce')
+            if pd.notna(s_date) and pd.notna(f_date):
+                if s_date == f_date:
+                    f_date += timedelta(hours=12)
+                task_label = f"{y_label} (実績)" if display_mode == '予実両方' else y_label
+                gantt_data.append(dict(Task=task_label, Start=s_date, Finish=f_date, Resource=f"{row['タスク']}_実績"))
+
     if gantt_data:
+        if display_mode == '予実両方':
+             gantt_data.sort(key=lambda x: (x['Task'].replace(' (予定)', '').replace(' (実績)', ''), x['Task']))
+        
         fig = ff.create_gantt(gantt_data, colors=colors, index_col='Resource', show_colorbar=True, group_tasks=True, title=title)
-        fig.update_layout(margin=dict(t=100), legend_traceorder="normal")
-        fig.update_yaxes(tickfont=dict(size=14))
-        fig.update_xaxes(side="top", tickformat="%Y/%m月", tickfont=dict(size=16))
+        
+        for trace in fig.data:
+            trace.name = trace.name.replace('_予定', ' (予定)').replace('_実績', '')
+        
+        fig.update_layout(
+            legend_title_text='凡例',
+            margin=dict(t=120)
+        )
+        fig.update_yaxes(tickfont=dict(size=20))
+        fig.update_xaxes(
+            side="top",
+            tickformat="%Y年%m月", 
+            tickfont=dict(size=24)
+        )
+
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("表示可能な案件データがありません。")
 
-# --- UIセクション ---
 st.header("1. データをアップロード")
 uploaded_file = st.file_uploader("案件データを含むCSVファイルをアップロードしてください", type="csv")
 
-# --- データ処理と表示セクション ---
-if uploaded_file is not None:
+if uploaded_file:
     try:
         main_df = pd.read_csv(uploaded_file, encoding='utf-8-sig', dtype=str).applymap(
             lambda x: x.strip() if isinstance(x, str) else x
         ).replace('', None)
         main_df['契約金額'] = pd.to_numeric(main_df['契約金額'], errors='coerce')
-
-        # --- 全案件ガントチャート ---
-        st.header("経営タイムライン全体")
-        create_gantt_chart(main_df.copy(), "")
-
-        # --- 月次分析セクション ---
-        st.header("月次入金状況分析")
-        analysis_df = analyze_payment_data(main_df.copy())
-        contract_months = sorted(analysis_df['契約月'].unique(), reverse=True)
-        selected_month = st.selectbox('分析・表示したい契約月を選択してください', contract_months)
         
-        if selected_month:
+        st.header("経営タイムライン全体")
+        create_gantt_chart(main_df.copy(), title="実績タイムライン", display_mode="実績のみ")
+
+        st.header("経営タイムライン（月別契約）")
+        analysis_df = analyze_payment_data(main_df.copy())
+        contracts_df = main_df[main_df['タスク']=='契約'].copy()
+        contracts_df['契約月'] = pd.to_datetime(contracts_df['実績終了日'], errors='coerce').dt.strftime('%Y-%m')
+        
+        contract_months = sorted(contracts_df['契約月'].dropna().unique(), reverse=True)
+        if contract_months:
+            selected_month = st.selectbox("月別表示対象を選択", options=contract_months)
+            
+            # --- サマリー指標（復活） ---
             monthly_data = analysis_df[analysis_df['契約月'] == selected_month]
-            total_contract_value = monthly_data['契約金額'].sum()
-            paid_data = monthly_data.dropna(subset=['入金日'])
-            total_paid_value = paid_data['契約金額'].sum()
-            total_unpaid_value = total_contract_value - total_paid_value
-            col1, col2, col3 = st.columns(3)
-            col1.metric("契約月 合計金額", f"{total_contract_value/1000000:,.1f} 百万円")
-            col2.metric("入金済 合計金額", f"{total_paid_value/1000000:,.1f} 百万円")
-            col3.metric("未入金 合計金額", f"{total_unpaid_value/1000000:,.1f} 百万円")
+            if not monthly_data.empty:
+                total_contract_value = monthly_data['契約金額'].sum()
+                paid_data = monthly_data.dropna(subset=['入金日'])
+                total_paid_value = paid_data['契約金額'].sum()
+                total_unpaid_value = total_contract_value - total_paid_value
+                col1, col2, col3 = st.columns(3)
+                col1.metric("契約月 合計金額", f"{total_contract_value/1000000:,.1f} 百万円")
+                col2.metric("入金済 合計金額", f"{total_paid_value/1000000:,.1f} 百万円")
+                col3.metric("未入金 合計金額", f"{total_unpaid_value/1000000:,.1f} 百万円")
 
-            # --- 月別ガントチャート ---
-            st.header(f"経営タイムライン（{selected_month}月契約）")
-            monthly_project_names = monthly_data['案件名'].unique()
-            monthly_gantt_df = main_df[main_df['案件名'].isin(monthly_project_names)]
-            create_gantt_chart(monthly_gantt_df, "")
-
+            selected_projects = contracts_df[contracts_df['契約月'] == selected_month]['案件名'].unique()
+            monthly_df = main_df[main_df['案件名'].isin(selected_projects)]
+            create_gantt_chart(monthly_df.copy(), title=f"{selected_month}月契約案件（予実比較）", display_mode="予実両方")
+        else:
+            st.info("月次タイムラインを表示するための契約データがありません。")
+            
     except Exception as e:
         st.error(f"処理中にエラーが発生しました: {e}")
 else:
