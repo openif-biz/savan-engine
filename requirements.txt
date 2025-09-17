@@ -1,3 +1,4 @@
 ﻿streamlit
 pandas
 plotly
+python-dateutil
