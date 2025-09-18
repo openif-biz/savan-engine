@@ -1,3 +1,4 @@
+version: '3.8'
 services:
   app:
     build: .
@@ -5,4 +6,3 @@ services:
     restart: always
     ports:
       - "8501:8501"
-    command: streamlit run gantt_line.py --server.port=8501 --server.address=0.0.0.0
