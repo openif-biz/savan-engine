@@ -1,0 +1,16 @@
+[
+  {
+    "experience_id": "20250917_ganttline_type_error",
+    "project_name": "Gantt Line",
+    "user_request": "CSVをアップロードして予実比較ガントチャートを表示したい",
+    "symptom": {
+      "error_type": "TypeError",
+      "error_message": "'<=' not supported between instances of 'str' and 'float'",
+      "keywords": ["<=", "str", "float", "pandas", "min", "max", "gantt"]
+    },
+    "final_solution": {
+      "root_cause": "CSVの文字エンコーディング(BOM)と、pandas列の型崩れが複合した問題。",
+      "successful_code_snippet": "main_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')\n\n# 日付範囲の計算ロジック\nall_dates = pd.concat([df[col] for col in date_cols])\nall_dates_clean = pd.to_datetime(all_dates, errors='coerce').dropna()\nmin_date = all_dates_clean.min()"
+    }
+  }
+]

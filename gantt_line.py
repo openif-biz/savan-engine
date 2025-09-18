@@ -1,131 +1,251 @@
 import streamlit as st
 import pandas as pd
 import plotly.figure_factory as ff
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
+from pandas.tseries.offsets import MonthEnd
 
 st.set_page_config(layout="wide")
 st.title("Gantt Line 経営タイムライン")
 
-def analyze_payment_data(df):
-    contracts = df[df['タスク'] == '契約'][['案件名', '担当者名', '契約金額', '実績終了日']].copy()
-    payments = df[df['タスク'] == '入金'][['案件名', '実績終了日']].copy()
-    
-    contracts.rename(columns={'実績終了日': '契約日'}, inplace=True)
-    payments.rename(columns={'実績終了日': '入金日'}, inplace=True)
-
-    contracts['契約日'] = pd.to_datetime(contracts['契約日'], errors='coerce')
-    payments['入金日'] = pd.to_datetime(payments['入金日'], errors='coerce')
-
-    analysis_df = pd.merge(contracts, payments, on='案件名', how='left')
-    analysis_df['契約月'] = analysis_df['契約日'].dt.strftime('%Y-%m')
-    return analysis_df.dropna(subset=['契約月'])
-
-def create_gantt_chart(df, title="", display_mode="実績のみ"):
-    df['案件担当者'] = df['案件名'] + ' - ' + df['担当者名']
-    task_order = ['契約', '工事', '請求', '入金']
-    
-    # 【透明度を修正】予定のバーのrgbaの最後の値を0.4に変更
-    colors = {
-        '契約_予定': 'rgba(220, 53, 69, 0.4)', '工事_予定': 'rgba(25, 135, 84, 0.4)', 
-        '請求_予定': 'rgba(13, 110, 253, 0.4)', '入金_予定': 'rgba(255, 193, 7, 0.4)',
-        '契約_実績': 'rgb(220, 53, 69)', '工事_実績': 'rgb(25, 135, 84)', 
-        '請求_実績': 'rgb(13, 110, 253)', '入金_実績': 'rgb(255, 193, 7)'
+# --- データ変換関数 ---
+def transform_and_clean_data(df):
+    df = df.rename(columns=lambda x: x.strip())
+    column_mapping = {
+        'カード表示名': '案件名', '営業担当': '担当者名', '初期売上': '契約金額',
+        '契約日(実績)': '契約', '完工日(実績)': '工事',
+        '請求書発行日（実績）': '請求', '初期費用入金日（実績）': '入金'
     }
-    gantt_data = []
+    df.rename(columns=column_mapping, inplace=True)
+    
+    required_cols = ['案件名', '担当者名', '契約金額']
+    if not all(col in df.columns for col in required_cols):
+        st.error(f"必須列（{required_cols}）が見つかりません。")
+        return pd.DataFrame()
 
-    for name, group in df.groupby(['案件名', '担当者名']):
-        proj_name, assignee_name = name
-        y_label = f"{proj_name} - {assignee_name}"
+    id_vars = ['案件名', '担当者名', '契約金額']
+    value_vars = ['契約', '工事', '請求', '入金']
+    value_vars = [v for v in value_vars if v in df.columns]
+    tidy_df = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='タスク', value_name='日付')
+    
+    tidy_df['日付'] = pd.to_datetime(tidy_df['日付'], errors='coerce')
+    tidy_df.dropna(subset=['日付'], inplace=True)
+    tidy_df['契約金額'] = pd.to_numeric(tidy_df['契約金額'], errors='coerce')
+    
+    return tidy_df
+
+# --- 日付を安全な範囲に丸めるヘルパー関数 ---
+def clamp_date(dt, min_dt, max_dt):
+    return max(min_dt, min(dt, max_dt))
+
+# --- ガントチャート作成関数 ---
+def create_gantt_chart(df, title="", display_mode="実績のみ"):
+    if df.empty:
+        st.warning("表示対象の案件データがありません。")
+        return
+
+    gantt_data = []
+    pivoted_df = df.pivot_table(index=['案件名', '担当者名'], columns='タスク', values='日付', aggfunc='first').reset_index()
+    pivoted_df = pivoted_df.sort_values(by=['担当者名', '案件名']).reset_index(drop=True)
+
+    colors = {
+        '契約 (予定)': 'rgba(128, 128, 128, 0.4)', '工事 (予定)': 'rgba(128, 128, 128, 0.4)',
+        '請求 (予定)': 'rgba(128, 128, 128, 0.4)', '入金 (予定)': 'rgba(128, 128, 128, 0.4)',
+        '契約 (実績)': 'rgb(220, 53, 69)', '工事 (実績)': 'rgb(25, 135, 84)',
+        '請求 (実績)': 'rgb(13, 110, 253)', '入金 (実績)': 'rgb(255, 193, 7)'
+    }
+
+    for _, row in pivoted_df.iterrows():
+        y_label_base = f"{row['案件名']} - {row['担当者名']}"
+        contract_date = row.get('契約')
+
+        if display_mode == "予実両方" and pd.notna(contract_date):
+            y_label_plan = f"{y_label_base} (予定)"
+            plan_const_end = contract_date + relativedelta(months=3)
+            plan_invoice_start = plan_const_end + timedelta(days=1)
+            plan_invoice_end = plan_invoice_start + relativedelta(months=1)
+            plan_payment_start = plan_invoice_end + timedelta(days=1)
+            plan_payment_end = plan_payment_start + relativedelta(months=2)
+            
+            gantt_data.append(dict(Task=y_label_plan, Start=contract_date, Finish=contract_date + timedelta(days=4), Resource='契約 (予定)'))
+            gantt_data.append(dict(Task=y_label_plan, Start=contract_date, Finish=plan_const_end, Resource='工事 (予定)'))
+            gantt_data.append(dict(Task=y_label_plan, Start=plan_invoice_start, Finish=plan_invoice_end, Resource='請求 (予定)'))
+            gantt_data.append(dict(Task=y_label_plan, Start=plan_payment_start, Finish=plan_payment_end, Resource='入金 (予定)'))
         
-        if display_mode == '予実両方':
-            contract_row_df = group[group['タスク'] == '契約']
-            if not contract_row_df.empty:
-                base_date = pd.to_datetime(contract_row_df['実績終了日'].iloc[0], errors='coerce')
-                if pd.notna(base_date):
-                    plan_dates = {
-                        '契約': (base_date, base_date + timedelta(days=1)),
-                        '工事': (base_date + timedelta(days=2), base_date + timedelta(days=1) + relativedelta(months=3)),
-                        '請求': (base_date + timedelta(days=2) + relativedelta(months=3), base_date + timedelta(days=1) + relativedelta(months=4)),
-                        '入金': (base_date + timedelta(days=2) + relativedelta(months=4), base_date + timedelta(days=1) + relativedelta(months=6))
-                    }
-                    for task in task_order:
-                        gantt_data.append(dict(Task=f"{y_label} (予定)", Start=plan_dates[task][0], Finish=plan_dates[task][1], Resource=f"{task}_予定"))
+        y_label_actual = f"{y_label_base} (実績)" if display_mode == "予実両方" else y_label_base
+        construction_date = row.get('工事')
+        payment_date = row.get('入金')
         
-        for i, row in group.iterrows():
-            s_date = pd.to_datetime(row['実績開始日'], errors='coerce')
-            f_date = pd.to_datetime(row['実績終了日'], errors='coerce')
-            if pd.notna(s_date) and pd.notna(f_date):
-                if s_date == f_date:
-                    f_date += timedelta(hours=12)
-                task_label = f"{y_label} (実績)" if display_mode == '予実両方' else y_label
-                gantt_data.append(dict(Task=task_label, Start=s_date, Finish=f_date, Resource=f"{row['タスク']}_実績"))
+        if pd.notna(contract_date):
+            contract_finish = contract_date + timedelta(days=4)
+            gantt_data.append(dict(Task=y_label_actual, Start=contract_date, Finish=contract_finish, Resource='契約 (実績)'))
+            
+            if pd.notna(construction_date):
+                construction_start = contract_finish + timedelta(days=1)
+                gantt_data.append(dict(Task=y_label_actual, Start=construction_start, Finish=construction_date, Resource='工事 (実績)'))
+                if pd.notna(payment_date):
+                    payment_start = construction_date + timedelta(days=1)
+                    gantt_data.append(dict(Task=y_label_actual, Start=payment_start, Finish=payment_date, Resource='入金 (実績)'))
 
     if gantt_data:
-        if display_mode == '予実両方':
-             gantt_data.sort(key=lambda x: (x['Task'].replace(' (予定)', '').replace(' (実績)', ''), x['Task']))
+        df_gantt = pd.DataFrame(gantt_data)
+        if display_mode == "予実両方":
+            df_gantt['sort_key'] = df_gantt['Task'].apply(lambda x: 0 if '(予定)' in x else 1)
+            df_gantt['base_task'] = df_gantt['Task'].str.replace(' (予定)', '').replace(' (実績)', '')
+            df_gantt = df_gantt.sort_values(by=['base_task', 'sort_key'])
         
-        fig = ff.create_gantt(gantt_data, colors=colors, index_col='Resource', show_colorbar=True, group_tasks=True, title=title)
-        
-        for trace in fig.data:
-            trace.name = trace.name.replace('_予定', ' (予定)').replace('_実績', '')
-        
-        fig.update_layout(
-            legend_title_text='凡例',
-            margin=dict(t=120)
-        )
-        fig.update_yaxes(tickfont=dict(size=20))
-        fig.update_xaxes(
-            side="top",
-            tickformat="%Y年%m月", 
-            tickfont=dict(size=24)
-        )
+        gantt_data_sorted = df_gantt.to_dict('records')
+        unique_tasks = len(df_gantt['Task'].unique())
+        chart_height = unique_tasks * 20 + 150
 
+        fig = ff.create_gantt(gantt_data_sorted, colors=colors, index_col='Resource', show_colorbar=True, group_tasks=True, showgrid_x=True, showgrid_y=True)
+        for trace in fig.data:
+            trace.name = trace.name.replace(' (予定)', '').replace(' (実績)', '')
+        fig.update_layout(margin=dict(t=80, b=50), legend_title_text='凡例', height=chart_height, title=dict(text=title, x=0.5))
+        fig.update_yaxes(tickfont=dict(size=16)) 
+        fig.update_xaxes(tickformat="%Y年%m月", tickfont=dict(size=16))
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("表示可能な案件データがありません。")
 
+# --- UI部分 ---
 st.header("1. データをアップロード")
-uploaded_file = st.file_uploader("案件データを含むCSVファイルをアップロードしてください", type="csv")
+uploaded_file = st.file_uploader("案件データを含むExcelまたはCSVファイルをアップロードしてください", type=["csv", "xlsx"])
+
+if 'overall_filtered' not in st.session_state:
+    st.session_state.overall_filtered = False
+if 'monthly_filtered' not in st.session_state:
+    st.session_state.monthly_filtered = False
 
 if uploaded_file:
     try:
-        main_df = pd.read_csv(uploaded_file, encoding='utf-8-sig', dtype=str).applymap(
-            lambda x: x.strip() if isinstance(x, str) else x
-        ).replace('', None)
-        main_df['契約金額'] = pd.to_numeric(main_df['契約金額'], errors='coerce')
-        
-        st.header("経営タイムライン全体")
-        create_gantt_chart(main_df.copy(), title="実績タイムライン", display_mode="実績のみ")
+        if 'tidy_df' not in st.session_state or st.session_state.get('file_name') != uploaded_file.name:
+            if uploaded_file.name.endswith('.xlsx'):
+                raw_df = pd.read_excel(uploaded_file, engine='openpyxl')
+            else:
+                raw_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
+            st.session_state.tidy_df = transform_and_clean_data(raw_df)
+            st.session_state.file_name = uploaded_file.name
+            st.session_state.overall_filtered = False
+            st.session_state.monthly_filtered = False
 
-        st.header("経営タイムライン（月別契約）")
-        analysis_df = analyze_payment_data(main_df.copy())
-        contracts_df = main_df[main_df['タスク']=='契約'].copy()
-        contracts_df['契約月'] = pd.to_datetime(contracts_df['実績終了日'], errors='coerce').dt.strftime('%Y-%m')
-        
-        contract_months = sorted(contracts_df['契約月'].dropna().unique(), reverse=True)
-        if contract_months:
-            selected_month = st.selectbox("月別表示対象を選択", options=contract_months)
+        base_tidy_df = st.session_state.tidy_df
+        if not base_tidy_df.empty:
             
-            # --- サマリー指標（復活） ---
-            monthly_data = analysis_df[analysis_df['契約月'] == selected_month]
-            if not monthly_data.empty:
-                total_contract_value = monthly_data['契約金額'].sum()
-                paid_data = monthly_data.dropna(subset=['入金日'])
-                total_paid_value = paid_data['契約金額'].sum()
-                total_unpaid_value = total_contract_value - total_paid_value
-                col1, col2, col3 = st.columns(3)
-                col1.metric("契約月 合計金額", f"{total_contract_value/1000000:,.1f} 百万円")
-                col2.metric("入金済 合計金額", f"{total_paid_value/1000000:,.1f} 百万円")
-                col3.metric("未入金 合計金額", f"{total_unpaid_value/1000000:,.1f} 百万円")
+            st.markdown("---")
+            st.subheader("担当営業フィルター")
+            all_reps = sorted(base_tidy_df['担当者名'].dropna().unique())
+            selected_reps = st.multiselect("担当者を選択してください（複数選択可）:", options=all_reps)
+            
+            if selected_reps:
+                tidy_df = base_tidy_df[base_tidy_df['担当者名'].isin(selected_reps)]
+            else:
+                tidy_df = base_tidy_df
+            
+            st.markdown("---")
+            st.header("全体サマリー")
+            if not tidy_df.empty:
+                pivoted_summary_df = tidy_df.pivot_table(index=['案件名', '担当者名', '契約金額'], columns='タスク', values='日付', aggfunc='first').reset_index()
 
-            selected_projects = contracts_df[contracts_df['契約月'] == selected_month]['案件名'].unique()
-            monthly_df = main_df[main_df['案件名'].isin(selected_projects)]
-            create_gantt_chart(monthly_df.copy(), title=f"{selected_month}月契約案件（予実比較）", display_mode="予実両方")
-        else:
-            st.info("月次タイムラインを表示するための契約データがありません。")
-            
+                # <<< 修正点: 列が存在するかチェックしてから合計を計算 >>>
+                total_contract = pivoted_summary_df['契約金額'].sum()
+                
+                total_construction = pivoted_summary_df[pivoted_summary_df['工事'].notna()]['契約金額'].sum() if '工事' in pivoted_summary_df.columns else 0
+                
+                total_payment = pivoted_summary_df[pivoted_summary_df['入金'].notna()]['契約金額'].sum() if '入金' in pivoted_summary_df.columns else 0
+                
+                s_col1, s_col2, s_col3 = st.columns(3)
+                s_col1.metric("契約金額 合計", f"{total_contract/1000000:,.1f} 百万円")
+                s_col2.metric("工事完了金額 合計", f"{total_construction/1000000:,.1f} 百万円")
+                s_col3.metric("入金額 合計", f"{total_payment/1000000:,.1f} 百万円")
+            else:
+                st.info("集計対象のデータがありません。")
+
+            contracts_df = tidy_df[tidy_df['タスク'] == '契約'].copy()
+            if not contracts_df.empty:
+                contracts_df['契約日'] = contracts_df['日付'].dt.date
+
+                st.markdown("---")
+                st.header("経営タイムライン全体（実績）")
+                with st.form("overall_form"):
+                    min_cal_date = date(2022, 4, 1)
+                    max_cal_date = date(2030, 12, 31)
+                    
+                    col1, col2 = st.columns(2)
+                    all_start = col1.date_input("表示開始日", value=contracts_df['契約日'].min(), min_value=min_cal_date, max_value=max_cal_date)
+                    all_end = col2.date_input("表示終了日", value=contracts_df['契約日'].max(), min_value=min_cal_date, max_value=max_cal_date)
+                    submitted_overall = st.form_submit_button("OK")
+
+                if submitted_overall:
+                    mask_all = (contracts_df['契約日'] >= all_start) & (contracts_df['契約日'] <= all_end)
+                    projects_all_df = contracts_df[mask_all].sort_values(by='契約日', ascending=False)
+                    projects_all_names = projects_all_df['案件名'].unique()
+                    
+                    st.session_state.display_df_all = tidy_df[tidy_df['案件名'].isin(projects_all_names)]
+                    st.session_state.total_projects_in_range = len(projects_all_df['案件名'].unique())
+                    st.session_state.overall_filtered = True
+                    st.session_state.monthly_filtered = False
+
+                if st.session_state.overall_filtered:
+                    display_df_all = st.session_state.display_df_all
+                    if not display_df_all.empty:
+                        st.info(f"指定期間内の案件（{st.session_state.total_projects_in_range}件）を表示しています。")
+                        create_gantt_chart(display_df_all, title="経営タイムライン全体（実績）", display_mode="実績のみ")
+                    else:
+                        st.warning("指定期間に該当する案件がありません。")
+                
+                if st.session_state.overall_filtered:
+                    st.markdown("---")
+                    st.header("月次 予実サマリー＆タイムライン")
+                    
+                    with st.form("monthly_form"):
+                        min_cal_date = date(2022, 4, 1)
+                        max_cal_date = date(2030, 12, 31)
+
+                        col1, col2 = st.columns(2)
+                        default_contract_date = contracts_df['契約日'].min()
+                        contract_date_selection = col1.date_input("基準となる「契約月」を選択", value=default_contract_date, min_value=min_cal_date, max_value=max_cal_date)
+                        
+                        ideal_default_payment_date = contract_date_selection + relativedelta(months=6)
+                        clamped_default_payment_date = clamp_date(ideal_default_payment_date, min_cal_date, max_cal_date)
+                        payment_date_selection = col2.date_input("比較対象の「入金確認月」を選択", value=clamped_default_payment_date, min_value=min_cal_date, max_value=max_cal_date)
+                        
+                        submitted_monthly = st.form_submit_button("OK")
+
+                    if submitted_monthly:
+                        st.session_state.selected_contract_month = pd.Period(contract_date_selection, 'M')
+                        st.session_state.selected_payment_month = pd.Period(payment_date_selection, 'M')
+                        st.session_state.monthly_filtered = True
+
+                    if st.session_state.monthly_filtered:
+                        selected_contract_month = st.session_state.selected_contract_month
+                        selected_payment_month = st.session_state.selected_payment_month
+                        
+                        contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
+                        target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
+                        total_contract_value = target_contracts['契約金額'].sum()
+                        target_project_names = target_contracts['案件名'].unique()
+                        payments_df = tidy_df[tidy_df['案件名'].isin(target_project_names) & (tidy_df['タスク'] == '入金')]
+                        payment_deadline = (selected_payment_month.to_timestamp() + MonthEnd(1))
+                        paid_payments = payments_df[payments_df['日付'] <= payment_deadline]
+                        paid_projects = pd.merge(target_contracts[['案件名', '契約金額']].drop_duplicates(), paid_payments[['案件名']].drop_duplicates(), on='案件名')
+                        total_paid_value = paid_projects['契約金額'].sum()
+                        total_unpaid_value = total_contract_value - total_paid_value
+
+                        st.subheader(f"【サマリー】{selected_contract_month.strftime('%Y-%m')}契約 → {selected_payment_month.strftime('%Y-%m')}時点での入金状況")
+                        m_col1, m_col2, m_col3 = st.columns(3)
+                        m_col1.metric(f"{selected_contract_month.strftime('%Y-%m')}月 契約総額", f"{total_contract_value/1000000:,.1f} 百万円")
+                        m_col2.metric("入金済 合計", f"{total_paid_value/1000000:,.1f} 百万円")
+                        m_col3.metric("未入金 合計", f"{total_unpaid_value/1000000:,.1f} 百万円")
+
+                        display_df_monthly = tidy_df[tidy_df['案件名'].isin(target_project_names)]
+                        if not display_df_monthly.empty:
+                            create_gantt_chart(display_df_monthly, title=f"{selected_contract_month.strftime('%Y-%m')}月契約案件 予実タイムライン", display_mode="予実両方")
+            else:
+                st.warning("フィルタリング対象の契約データが見つかりません。")
+
     except Exception as e:
         st.error(f"処理中にエラーが発生しました: {e}")
+        st.exception(e)
 else:
-    st.info("CSVファイルをアップロードすると、タイムラインが表示されます。")
+    st.info("ファイルをアップロードすると、タイムラインが表示されます。")
