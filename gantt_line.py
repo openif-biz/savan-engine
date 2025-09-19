@@ -11,10 +11,8 @@ st.set_page_config(layout="wide")
 st.title("Gantt Line 経営タイムライン")
 
 # --- 定数定義 ---
-# NOTE: 消費税率の定数は残しますが、計算では使用しません
 CONSUMPTION_TAX_RATE = 1.1 
 
-# Excel/CSVファイルの列名とプログラム内部で使用する列名の対応表
 COLUMN_MAPPING = {
     'カード表示名': '案件名',
     '営業担当': '担当者名',
@@ -25,7 +23,6 @@ COLUMN_MAPPING = {
     '初期費用入金日（実績）': '入金'
 }
 
-# データ整形（melt）時に使用する列
 ID_VARS_FOR_MELT = ['案件名', '担当者名', '契約金額', '入金額実績']
 DATE_COLS_TO_MELT = ['契約', '工事', '入金']
 
@@ -51,12 +48,12 @@ def transform_and_clean_data(_df):
         s = s.str.replace(r'[^\d.]', '', regex=True)
         return pd.to_numeric(s, errors='coerce')
 
-    # --- ▼▼▼ ここからロジック修正 ▼▼▼ ---
-    # 消費税計算（* 1.1）を削除し、Excelの値をそのまま使用する
     df['契約金額'] = clean_and_convert_to_numeric(df['契約金額'])
-    # --- ▲▲▲ ここまでロジック修正 ▲▲▲ ---
     
-    df['入金額実績'] = clean_and_convert_to_numeric(df['入金額実績'])
+    # --- ▼▼▼ ここからロジック修正 ▼▼▼ ---
+    # NOTE: 確認のため、入金額実績の計算結果を0.9倍にする
+    df['入金額実績'] = clean_and_convert_to_numeric(df['入金額実績']) * 0.9
+    # --- ▲▲▲ ここまでロジック修正 ▲▲▲ ---
 
     value_vars = [v for v in DATE_COLS_TO_MELT if v in df.columns]
     
@@ -183,7 +180,6 @@ if uploaded_file:
                 unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates(subset=['案件名'])
                 total_contract = unique_projects_df['契約金額'].sum()
 
-                # 「契約日」と「入金日」の両方が存在する案件のみを対象に入金額を合計
                 contracted_projects = tidy_df[tidy_df['タスク'] == '契約']['案件名'].unique()
                 paid_projects = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
                 valid_projects_for_payment = set(contracted_projects) & set(paid_projects)
