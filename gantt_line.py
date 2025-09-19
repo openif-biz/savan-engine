@@ -36,11 +36,13 @@ def transform_and_clean_data(df):
     value_vars = [v for v in value_vars if v in df.columns]
     
     tidy_df = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='タスク', value_name='日付')
+    
     tidy_df['日付'] = pd.to_datetime(tidy_df['日付'], errors='coerce')
     tidy_df.dropna(subset=['日付'], inplace=True)
     
     return tidy_df
 
+# --- 日付を安全な範囲に丸めるヘルパー関数 ---
 def clamp_date(dt, min_dt, max_dt):
     return max(min_dt, min(dt, max_dt))
 
@@ -97,7 +99,7 @@ def create_gantt_chart(df, title="", display_mode="実績のみ"):
         df_gantt = pd.DataFrame(gantt_data)
         if display_mode == "予実両方":
             df_gantt['sort_key'] = df_gantt['Task'].apply(lambda x: 0 if '(予定)' in x else 1)
-            df_gantt['base_task'] = df_gantt['Task'].str.replace(' (予定)', '').replace(' (実績)', '')
+            df_gantt['base_task'] = df_gantt['Task'].str.replace(' (予定)', '').str.replace(' (実績)', '')
             df_gantt = df_gantt.sort_values(by=['base_task', 'sort_key'])
         
         gantt_data_sorted = df_gantt.to_dict('records')
@@ -151,12 +153,12 @@ if uploaded_file:
             st.markdown("---")
             st.header("全体サマリー")
             if not tidy_df.empty:
-                # <<< 修正済: 案件ごとに1行だけで集計 >>>
-                projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates('案件名')
-                total_contract = projects_df['契約金額'].sum()
+                # <<< 修正点: 重複を除外した正しい集計ロジック >>>
+                unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates()
+                total_contract = unique_projects_df['契約金額'].sum()
 
-                paid_projects = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
-                total_payment = projects_df[projects_df['案件名'].isin(paid_projects)]['入金額実績'].sum()
+                paid_project_names = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
+                total_payment = unique_projects_df[unique_projects_df['案件名'].isin(paid_project_names)]['入金額実績'].sum()
                 
                 s_col1, s_col2 = st.columns(2)
                 s_col1.metric("契約金額 合計 (税込)", f"{total_contract/1000000:,.1f} 百万円")
@@ -227,7 +229,8 @@ if uploaded_file:
                         contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
                         target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
                         
-                        unique_target_contracts = target_contracts[['案件名', '契約金額', '入金額実績']].drop_duplicates('案件名')
+                        # <<< 修正点: 重複を除外した正しい月次集計ロジック >>>
+                        unique_target_contracts = target_contracts[['案件名', '契約金額', '入金額実績']].drop_duplicates()
                         total_contract_value = unique_target_contracts['契約金額'].sum()
                         
                         target_project_names = target_contracts['案件名'].unique()
@@ -256,3 +259,4 @@ if uploaded_file:
         st.exception(e)
 else:
     st.info("ファイルをアップロードすると、タイムラインが表示されます。")
+
