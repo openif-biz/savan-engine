@@ -39,7 +39,7 @@ def transform_and_clean_data(_df):
         s = s.str.replace(r'[^\d.]', '', regex=True)
         return pd.to_numeric(s, errors='coerce').fillna(0)
 
-    df['契約金額'] = clean_and_convert_to_numeric(df['契約金額'])
+    df['契約金額'] = clean_and_convert_to_numeric(df['契約金額']) * 1.1
     df['入金額実績'] = clean_and_convert_to_numeric(df['入金額実績'])
 
     id_vars = ['案件名', '担当者名', '契約金額', '入金額実績']
@@ -56,8 +56,10 @@ def transform_and_clean_data(_df):
     
     return tidy_df
 
+# ▼▼▼ この関数を追加しました ▼▼▼
 def clamp_date(dt, min_dt, max_dt):
     return max(min_dt, min(dt, max_dt))
+# ▲▲▲ 追加箇所 ▲▲▲
 
 def create_gantt_chart(df, title="", display_mode="実績のみ"):
     if df.empty or 'タスク' not in df.columns:
@@ -161,11 +163,13 @@ if not st.session_state.tidy_df.empty:
     if not tidy_df.empty:
         unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates()
         
-        total_contract_tax_exc = unique_projects_df['契約金額'].sum() / 1.1
-        total_payment = unique_projects_df[unique_projects_df['入金額実績'] > 0]['入金額実績'].sum()
+        total_contract = unique_projects_df['契約金額'].sum()
         
+        paid_project_names = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
+        total_payment = unique_projects_df[unique_projects_df['案件名'].isin(paid_project_names)]['入金額実績'].sum()
+
         s_col1, s_col2 = st.columns(2)
-        s_col1.metric("契約金額 合計 (税抜)", f"{total_contract_tax_exc/1000000:,.1f} 百万円")
+        s_col1.metric("契約金額 合計 (税込)", f"{total_contract/1000000:,.1f} 百万円")
         s_col2.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
     else:
         st.info("集計対象のデータがありません。")
