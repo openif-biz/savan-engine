@@ -11,8 +11,8 @@ st.set_page_config(layout="wide")
 st.title("Gantt Line 経営タイムライン")
 
 # --- 定数定義 ---
-# 将来的なメンテナンスを容易にするため、設定値や固定値をここで管理します。
-CONSUMPTION_TAX_RATE = 1.1 # 消費税率
+# NOTE: 消費税率の定数は残しますが、計算では使用しません
+CONSUMPTION_TAX_RATE = 1.1 
 
 # Excel/CSVファイルの列名とプログラム内部で使用する列名の対応表
 COLUMN_MAPPING = {
@@ -30,15 +30,12 @@ ID_VARS_FOR_MELT = ['案件名', '担当者名', '契約金額', '入金額実�
 DATE_COLS_TO_MELT = ['契約', '工事', '入金']
 
 # --- データ変換関数 ---
-@st.cache_data # 同じファイルをアップロードした際の処理をキャッシュし、高速化
+@st.cache_data
 def transform_and_clean_data(_df):
     """
     アップロードされたDataFrameを整形し、分析可能な形式に変換する関数。
-    - 列名の正規化
-    - 金額データのクレンジングと数値変換
-    - 横長データを縦長データ（tidy data）に変換
     """
-    df = _df.copy() # 元のDataFrameを変更しないようにコピー
+    df = _df.copy()
     df = df.rename(columns=lambda x: x.strip())
     df.rename(columns=COLUMN_MAPPING, inplace=True)
     
@@ -54,7 +51,11 @@ def transform_and_clean_data(_df):
         s = s.str.replace(r'[^\d.]', '', regex=True)
         return pd.to_numeric(s, errors='coerce')
 
-    df['契約金額'] = clean_and_convert_to_numeric(df['契約金額']) * CONSUMPTION_TAX_RATE
+    # --- ▼▼▼ ここからロジック修正 ▼▼▼ ---
+    # 消費税計算（* 1.1）を削除し、Excelの値をそのまま使用する
+    df['契約金額'] = clean_and_convert_to_numeric(df['契約金額'])
+    # --- ▲▲▲ ここまでロジック修正 ▲▲▲ ---
+    
     df['入金額実績'] = clean_and_convert_to_numeric(df['入金額実績'])
 
     value_vars = [v for v in DATE_COLS_TO_MELT if v in df.columns]
@@ -182,23 +183,15 @@ if uploaded_file:
                 unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates(subset=['案件名'])
                 total_contract = unique_projects_df['契約金額'].sum()
 
-                # --- ▼▼▼ ここから入金額合計のロジック修正 ▼▼▼ ---
-                # 1. 「契約日」が存在する案件のリストを取得
+                # 「契約日」と「入金日」の両方が存在する案件のみを対象に入金額を合計
                 contracted_projects = tidy_df[tidy_df['タスク'] == '契約']['案件名'].unique()
-                
-                # 2. 「入金日」が存在する案件のリストを取得
                 paid_projects = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
-                
-                # 3. 上記2つのリスト両方に含まれる案件（＝契約日と入金日の両方がある）を特定
                 valid_projects_for_payment = set(contracted_projects) & set(paid_projects)
-                
-                # 4. 特定した案件の入金額のみを合計する
                 total_payment = unique_projects_df[unique_projects_df['案件名'].isin(valid_projects_for_payment)]['入金額実績'].sum()
-                # --- ▲▲▲ ここまで入金額合計のロジック修正 ▲▲▲ ---
                 
                 s_col1, s_col2 = st.columns(2)
-                s_col1.metric("契約金額 合計 (税込)", f"{total_contract/1000000:,.1f} 百万円")
-                s_col2.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
+                s_col1.metric("契約金額 合計", f"{total_contract/1000000:,.1f} 百万円")
+                s_col2.metric("入金額 合計", f"{total_payment/1000000:,.1f} 百万円")
             else:
                 st.info("集計対象のデータがありません。")
 
@@ -280,9 +273,9 @@ if uploaded_file:
 
                         st.subheader(f"【サマリー】{selected_contract_month.strftime('%Y-%m')}契約 → {selected_payment_month.strftime('%Y-%m')}時点での入金状況")
                         m_col1, m_col2, m_col3 = st.columns(3)
-                        m_col1.metric(f"{selected_contract_month.strftime('%Y-%m')}月 契約総額 (税込)", f"{total_contract_value/1000000:,.1f} 百万円")
-                        m_col2.metric("入金済 合計 (税込)", f"{total_paid_value/1000000:,.1f} 百万円")
-                        m_col3.metric("未入金 合計 (税込)", f"{total_unpaid_value/1000000:,.1f} 百万円")
+                        m_col1.metric(f"{selected_contract_month.strftime('%Y-%m')}月 契約総額", f"{total_contract_value/1000000:,.1f} 百万円")
+                        m_col2.metric("入金済 合計", f"{total_paid_value/1000000:,.1f} 百万円")
+                        m_col3.metric("未入金 合計", f"{total_unpaid_value/1000000:,.1f} 百万円")
 
                         display_df_monthly = tidy_df[tidy_df['案件名'].isin(target_project_names)]
                         if not display_df_monthly.empty:
