@@ -24,12 +24,13 @@ ID_VARS_FOR_MELT = ['案件名', '担当者名', '契約金額', '入金額実�
 DATE_COLS_TO_MELT = ['契約', '工事', '入金']
 
 # --- データ変換関数 ---
-@st.cache_data # DataFrameの計算結果をキャッシュするが、新しいファイルでは再計算される
+@st.cache_data
 def transform_and_clean_data(_df):
+    if _df.empty:
+        return pd.DataFrame()
     df = _df.copy()
     df = df.rename(columns=lambda x: x.strip())
     df.rename(columns=COLUMN_MAPPING, inplace=True)
-    
     required_cols = ['案件名', '担当者名', '契約金額', '入金額実績']
     if not all(col in df.columns for col in required_cols):
         st.error(f"必須列（{required_cols}）が見つかりません。")
@@ -54,19 +55,14 @@ def clamp_date(dt, min_dt, max_dt):
     return max(min_dt, min(dt, max_dt))
 
 def create_gantt_chart(df, title="", display_mode="実績のみ"):
+    # (この関数に変更はありません)
     if df.empty:
         st.warning("表示対象の案件データがありません。")
         return
-
     gantt_data = []
     pivoted_df = df.pivot_table(index=['案件名', '担当者名'], columns='タスク', values='日付', aggfunc='first').reset_index()
     pivoted_df = pivoted_df.sort_values(by=['担当者名', '案件名']).reset_index(drop=True)
-    colors = {
-        '契約 (予定)': 'rgba(128, 128, 128, 0.4)', '工事 (予定)': 'rgba(128, 128, 128, 0.4)',
-        '請求 (予定)': 'rgba(128, 128, 128, 0.4)', '入金 (予定)': 'rgba(128, 128, 128, 0.4)',
-        '契約 (実績)': 'rgb(220, 53, 69)', '工事 (実績)': 'rgb(25, 135, 84)',
-        '入金 (実績)': 'rgb(255, 193, 7)'
-    }
+    colors = { '契約 (予定)': 'rgba(128, 128, 128, 0.4)', '工事 (予定)': 'rgba(128, 128, 128, 0.4)', '請求 (予定)': 'rgba(128, 128, 128, 0.4)', '入金 (予定)': 'rgba(128, 128, 128, 0.4)', '契約 (実績)': 'rgb(220, 53, 69)', '工事 (実績)': 'rgb(25, 135, 84)', '入金 (実績)': 'rgb(255, 193, 7)' }
     for _, row in pivoted_df.iterrows():
         y_label_base = f"{row['案件名']} - {row['担当者名']}"
         contract_date = row.get('契約')
@@ -114,36 +110,21 @@ def create_gantt_chart(df, title="", display_mode="実績のみ"):
 
 # --- UI部分 ---
 st.header("1. データをアップロード")
+uploaded_file = st.file_uploader("案件データを含むExcelまたはCSVファイルをアップロードしてください", type=["csv", "xlsx"])
 
 # --- ▼▼▼ ここからロジック修正 ▼▼▼ ---
-# 新しいファイルがアップロードされた際に、過去の計算結果をクリアするための関数
-def clear_state_on_new_upload():
-    """セッションステートをクリアして、データの再読み込みを強制する"""
-    keys_to_clear = ['tidy_df', 'overall_filtered', 'monthly_filtered', 'display_df_all']
-    for key in keys_to_clear:
-        if key in st.session_state:
-            del st.session_state[key]
-
-# ファイルアップローダーに `on_change` コールバックを設定
-uploaded_file = st.file_uploader(
-    "案件データを含むExcelまたはCSVファイルをアップロードしてください",
-    type=["csv", "xlsx"],
-    on_change=clear_state_on_new_upload
-)
-# --- ▲▲▲ ここまでロジック修正 ▲▲▲ ---
-
+# セッションステートによる複雑なデータ管理を廃止し、シンプル化
 if uploaded_file:
     try:
-        # データの読み込みと処理はセッションステートにデータがない場合のみ実行
-        if 'tidy_df' not in st.session_state:
-            if uploaded_file.name.endswith('.xlsx'):
-                raw_df = pd.read_excel(uploaded_file, engine='openpyxl')
-            else:
-                raw_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
-            
-            st.session_state.tidy_df = transform_and_clean_data(raw_df)
+        # ファイルがアップロードされたら、毎回DataFrameを読み込む
+        if uploaded_file.name.endswith('.xlsx'):
+            raw_df = pd.read_excel(uploaded_file, engine='openpyxl')
+        else:
+            raw_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
+        
+        # 毎回データを変換・整形する（キャッシュが効くので高速）
+        base_tidy_df = transform_and_clean_data(raw_df)
 
-        base_tidy_df = st.session_state.tidy_df
         if not base_tidy_df.empty:
             st.markdown("---")
             st.subheader("担当営業フィルター")
@@ -167,7 +148,7 @@ if uploaded_file:
                 s_col1.metric("契約金額 合計", f"{total_contract/1000000:,.1f} 百万円")
                 s_col2.metric("入金額 合計", f"{total_payment/1000000:,.1f} 百万円")
             else:
-                st.info("集計対象のデータがありません。")
+                st.info("フィルター条件に合うデータがありません。")
 
             contracts_df = tidy_df[tidy_df['タスク'] == '契約'].copy()
             if not contracts_df.empty:
@@ -175,81 +156,76 @@ if uploaded_file:
 
                 st.markdown("---")
                 st.header("経営タイムライン全体（実績）")
-                if 'overall_filtered' not in st.session_state:
-                    st.session_state.overall_filtered = False
+                
+                # タイムラインの表示範囲をセッションで管理
+                if 'start_date' not in st.session_state:
+                    st.session_state.start_date = contracts_df['契約日'].min()
+                if 'end_date' not in st.session_state:
+                    st.session_state.end_date = contracts_df['契約日'].max()
 
                 with st.form("overall_form"):
                     min_cal_date = date(2022, 4, 1)
                     max_cal_date = date(2030, 12, 31)
                     col1, col2 = st.columns(2)
-                    all_start = col1.date_input("表示開始日", value=contracts_df['契約日'].min(), min_value=min_cal_date, max_value=max_cal_date)
-                    all_end = col2.date_input("表示終了日", value=contracts_df['契約日'].max(), min_value=min_cal_date, max_value=max_cal_date)
+                    start_date = col1.date_input("表示開始日", value=st.session_state.start_date, min_value=min_cal_date, max_value=max_cal_date)
+                    end_date = col2.date_input("表示終了日", value=st.session_state.end_date, min_value=min_cal_date, max_value=max_cal_date)
                     submitted_overall = st.form_submit_button("OK")
 
                 if submitted_overall:
-                    st.session_state.overall_filtered = True
-                    st.session_state.monthly_filtered = False
-                    mask_all = (contracts_df['契約日'] >= all_start) & (contracts_df['契約日'] <= all_end)
-                    projects_all_names = contracts_df[mask_all]['案件名'].unique()
-                    st.session_state.display_df_all = tidy_df[tidy_df['案件名'].isin(projects_all_names)]
-                    st.session_state.total_projects_in_range = len(projects_all_names)
-
-                if st.session_state.overall_filtered:
-                    display_df_all = st.session_state.get('display_df_all', pd.DataFrame())
-                    if not display_df_all.empty:
-                        st.info(f"指定期間内の案件（{st.session_state.get('total_projects_in_range', 0)}件）を表示しています。")
-                        create_gantt_chart(display_df_all, title="経営タイムライン全体（実績）", display_mode="実績のみ")
-                    else:
-                        st.warning("指定期間に該当する案件がありません。")
+                    st.session_state.start_date = start_date
+                    st.session_state.end_date = end_date
                 
-                if st.session_state.overall_filtered:
-                    st.markdown("---")
-                    st.header("月次 予実サマリー＆タイムライン")
-                    if 'monthly_filtered' not in st.session_state:
-                        st.session_state.monthly_filtered = False
+                mask_all = (contracts_df['契約日'] >= st.session_state.start_date) & (contracts_df['契約日'] <= st.session_state.end_date)
+                projects_in_range_names = contracts_df[mask_all]['案件名'].unique()
+                display_df_all = tidy_df[tidy_df['案件名'].isin(projects_in_range_names)]
+                
+                if not display_df_all.empty:
+                    st.info(f"指定期間内の案件（{len(projects_in_range_names)}件）を表示しています。")
+                    create_gantt_chart(display_df_all, title="経営タイムライン全体（実績）", display_mode="実績のみ")
+                else:
+                    st.warning("指定期間に該当する案件がありません。")
+                
+                st.markdown("---")
+                st.header("月次 予実サマリー＆タイムライン")
+                with st.form("monthly_form"):
+                    col1, col2 = st.columns(2)
+                    default_contract_date = contracts_df['契約日'].min()
+                    contract_date_selection = col1.date_input("基準となる「契約月」を選択", value=default_contract_date, min_value=min_cal_date, max_value=max_cal_date)
+                    ideal_default_payment_date = contract_date_selection + relativedelta(months=6)
+                    clamped_default_payment_date = clamp_date(ideal_default_payment_date, min_cal_date, max_cal_date)
+                    payment_date_selection = col2.date_input("比較対象の「入金確認月」を選択", value=clamped_default_payment_date, min_value=min_cal_date, max_value=max_cal_date)
+                    submitted_monthly = st.form_submit_button("OK")
 
-                    with st.form("monthly_form"):
-                        col1, col2 = st.columns(2)
-                        default_contract_date = contracts_df['契約日'].min()
-                        contract_date_selection = col1.date_input("基準となる「契約月」を選択", value=default_contract_date, min_value=min_cal_date, max_value=max_cal_date)
-                        ideal_default_payment_date = contract_date_selection + relativedelta(months=6)
-                        clamped_default_payment_date = clamp_date(ideal_default_payment_date, min_cal_date, max_cal_date)
-                        payment_date_selection = col2.date_input("比較対象の「入金確認月」を選択", value=clamped_default_payment_date, min_value=min_cal_date, max_value=max_cal_date)
-                        submitted_monthly = st.form_submit_button("OK")
-
-                    if submitted_monthly:
-                        st.session_state.monthly_filtered = True
-                        st.session_state.selected_contract_month = pd.Period(contract_date_selection, 'M')
-                        st.session_state.selected_payment_month = pd.Period(payment_date_selection, 'M')
-
-                    if st.session_state.monthly_filtered:
-                        selected_contract_month = st.session_state.selected_contract_month
-                        selected_payment_month = st.session_state.selected_payment_month
-                        contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
-                        target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
-                        unique_target_contracts = target_contracts[['案件名', '契約金額']].drop_duplicates(subset=['案件名'])
-                        total_contract_value = unique_target_contracts['契約金額'].sum()
-                        target_project_names = target_contracts['案件名'].unique()
-                        payments_df = tidy_df[tidy_df['案件名'].isin(target_project_names) & (tidy_df['タスク'] == '入金')]
-                        payment_deadline = (selected_payment_month.to_timestamp() + MonthEnd(1))
-                        paid_payments = payments_df[payments_df['日付'] <= payment_deadline]
-                        paid_project_names = paid_payments['案件名'].unique()
-                        unique_all_projects = tidy_df[['案件名', '入金額実績']].drop_duplicates(subset=['案件名'])
-                        total_paid_value = unique_all_projects[unique_all_projects['案件名'].isin(paid_project_names)]['入金額実績'].sum()
-                        total_unpaid_value = total_contract_value - total_paid_value
-
-                        st.subheader(f"【サマリー】{selected_contract_month.strftime('%Y-%m')}契約 → {selected_payment_month.strftime('%Y-%m')}時点での入金状況")
-                        m_col1, m_col2, m_col3 = st.columns(3)
-                        m_col1.metric(f"{selected_contract_month.strftime('%Y-%m')}月 契約総額", f"{total_contract_value/1000000:,.1f} 百万円")
-                        m_col2.metric("入金済 合計", f"{total_paid_value/1000000:,.1f} 百万円")
-                        m_col3.metric("未入金 合計", f"{total_unpaid_value/1000000:,.1f} 百万円")
-                        display_df_monthly = tidy_df[tidy_df['案件名'].isin(target_project_names)]
-                        if not display_df_monthly.empty:
-                            create_gantt_chart(display_df_monthly, title=f"{selected_contract_month.strftime('%Y-%m')}月契約案件 予実タイムライン", display_mode="予実両方")
+                if submitted_monthly:
+                    selected_contract_month = pd.Period(contract_date_selection, 'M')
+                    selected_payment_month = pd.Period(payment_date_selection, 'M')
+                    contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
+                    target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
+                    unique_target_contracts = target_contracts[['案件名', '契約金額']].drop_duplicates(subset=['案件名'])
+                    total_contract_value = unique_target_contracts['契約金額'].sum()
+                    target_project_names = target_contracts['案件名'].unique()
+                    payments_df = tidy_df[tidy_df['案件名'].isin(target_project_names) & (tidy_df['タスク'] == '入金')]
+                    payment_deadline = (selected_payment_month.to_timestamp() + MonthEnd(1))
+                    paid_payments = payments_df[payments_df['日付'] <= payment_deadline]
+                    paid_project_names = paid_payments['案件名'].unique()
+                    unique_all_projects = tidy_df[['案件名', '入金額実績']].drop_duplicates(subset=['案件名'])
+                    total_paid_value = unique_all_projects[unique_all_projects['案件名'].isin(paid_project_names)]['入金額実績'].sum()
+                    total_unpaid_value = total_contract_value - total_paid_value
+                    st.subheader(f"【サマリー】{selected_contract_month.strftime('%Y-%m')}契約 → {selected_payment_month.strftime('%Y-%m')}時点での入金状況")
+                    m_col1, m_col2, m_col3 = st.columns(3)
+                    m_col1.metric(f"{selected_contract_month.strftime('%Y-%m')}月 契約総額", f"{total_contract_value/1000000:,.1f} 百万円")
+                    m_col2.metric("入金済 合計", f"{total_paid_value/1000000:,.1f} 百万円")
+                    m_col3.metric("未入金 合計", f"{total_unpaid_value/1000000:,.1f} 百万円")
+                    display_df_monthly = tidy_df[tidy_df['案件名'].isin(target_project_names)]
+                    if not display_df_monthly.empty:
+                        create_gantt_chart(display_df_monthly, title=f"{selected_contract_month.strftime('%Y-%m')}月契約案件 予実タイムライン", display_mode="予実両方")
             else:
                 st.warning("フィルタリング対象の契約データが見つかりません。")
+        else:
+            st.info("アップロードされたファイルに計算対象のデータがありません。")
     except Exception as e:
         st.error(f"処理中にエラーが発生しました: {e}")
         st.exception(e)
 else:
     st.info("ファイルをアップロードすると、タイムラインが表示されます。")
+# --- ▲▲▲ ここまでロジック修正 ▲▲▲ ---
