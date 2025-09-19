@@ -12,27 +12,30 @@ st.title("Gantt Line 経営タイムライン")
 def transform_and_clean_data(df):
     df = df.rename(columns=lambda x: x.strip())
     
+    # <<< 修正点: 「初期導入費（税込）」を「入金額実績」としてマッピング >>>
     column_mapping = {
         'カード表示名': '案件名',
         '営業担当': '担当者名',
         '初期売上': '契約金額',
+        '初期導入費（税込）': '入金額実績', # 新しく追加
         '契約日(実績)': '契約',
         '完工日(実績)': '工事',
         '初期費用入金日（実績）': '入金'
     }
     df.rename(columns=column_mapping, inplace=True)
     
-    required_cols = ['案件名', '担当者名', '契約金額']
+    required_cols = ['案件名', '担当者名', '契約金額', '入金額実績']
     if not all(col in df.columns for col in required_cols):
         st.error(f"必須列（{required_cols}）が見つかりません。")
         return pd.DataFrame()
 
-    id_vars = ['案件名', '担当者名', '契約金額']
+    # <<< 修正点: 契約金額と入金額実績を別々に処理 >>>
+    df['契約金額'] = pd.to_numeric(df['契約金額'].astype(str).str.replace(',', ''), errors='coerce') * 1.1
+    df['入金額実績'] = pd.to_numeric(df['入金額実績'].astype(str).str.replace(',', ''), errors='coerce')
+
+    id_vars = ['案件名', '担当者名', '契約金額', '入金額実績']
     value_vars = ['契約', '工事', '入金']
     value_vars = [v for v in value_vars if v in df.columns]
-    
-    # <<< 修正点: 金額からカンマを除去してから数値に変換し、1.1倍する >>>
-    df['契約金額'] = pd.to_numeric(df['契約金額'].astype(str).str.replace(',', ''), errors='coerce') * 1.1
     
     tidy_df = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='タスク', value_name='日付')
     
@@ -152,12 +155,13 @@ if uploaded_file:
             st.markdown("---")
             st.header("全体サマリー")
             if not tidy_df.empty:
-                pivoted_summary_df = tidy_df.pivot_table(index=['案件名', '担当者名', '契約金額'], columns='タスク', values='日付', aggfunc='first').reset_index()
+                # <<< 修正点: `入金額実績`をピボットのインデックスに追加 >>>
+                pivoted_summary_df = tidy_df.pivot_table(index=['案件名', '担当者名', '契約金額', '入金額実績'], columns='タスク', values='日付', aggfunc='first').reset_index()
 
                 total_contract = pivoted_summary_df['契約金額'].sum()
-                total_payment = pivoted_summary_df[pivoted_summary_df['入金'].notna()]['契約金額'].sum() if '入金' in pivoted_summary_df.columns else 0
+                # <<< 修正点: '入金額実績'列を合計するように変更 >>>
+                total_payment = pivoted_summary_df[pivoted_summary_df['入金'].notna()]['入金額実績'].sum() if '入金' in pivoted_summary_df.columns else 0
                 
-                # <<< 修正点: 「工事完了金額」を削除し、2列表示に >>>
                 s_col1, s_col2 = st.columns(2)
                 s_col1.metric("契約金額 合計 (税込)", f"{total_contract/1000000:,.1f} 百万円")
                 s_col2.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
@@ -227,12 +231,17 @@ if uploaded_file:
                         contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
                         target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
                         total_contract_value = target_contracts['契約金額'].sum()
+                        
                         target_project_names = target_contracts['案件名'].unique()
                         payments_df = tidy_df[tidy_df['案件名'].isin(target_project_names) & (tidy_df['タスク'] == '入金')]
                         payment_deadline = (selected_payment_month.to_timestamp() + MonthEnd(1))
                         paid_payments = payments_df[payments_df['日付'] <= payment_deadline]
-                        paid_projects = pd.merge(target_contracts[['案件名', '契約金額']].drop_duplicates(), paid_payments[['案件名']].drop_duplicates(), on='案件名')
-                        total_paid_value = paid_projects['契約金額'].sum()
+                        
+                        # <<< 修正点: '入金額実績'を合計するようにロジックを変更 >>>
+                        paid_project_names = paid_payments['案件名'].unique()
+                        paid_contracts_df = target_contracts[target_contracts['案件名'].isin(paid_project_names)]
+                        total_paid_value = paid_contracts_df['入金額実績'].sum()
+                        
                         total_unpaid_value = total_contract_value - total_paid_value
 
                         st.subheader(f"【サマリー】{selected_contract_month.strftime('%Y-%m')}契約 → {selected_payment_month.strftime('%Y-%m')}時点での入金状況")
