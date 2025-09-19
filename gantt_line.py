@@ -39,6 +39,7 @@ def transform_and_clean_data(_df):
         s = s.str.replace(r'[^\d.]', '', regex=True)
         return pd.to_numeric(s, errors='coerce').fillna(0)
 
+    # 税抜きの「契約金額」に1.1を掛けて税込に統一
     df['契約金額'] = clean_and_convert_to_numeric(df['契約金額']) * 1.1
     df['入金額実績'] = clean_and_convert_to_numeric(df['入金額実績'])
 
@@ -47,7 +48,7 @@ def transform_and_clean_data(_df):
     value_vars = [v for v in value_vars if v in df.columns]
 
     if not value_vars:
-        return df
+        return pd.DataFrame()
 
     tidy_df = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='タスク', value_name='日付')
     
@@ -56,10 +57,8 @@ def transform_and_clean_data(_df):
     
     return tidy_df
 
-# ▼▼▼ この関数を追加しました ▼▼▼
 def clamp_date(dt, min_dt, max_dt):
     return max(min_dt, min(dt, max_dt))
-# ▲▲▲ 追加箇所 ▲▲▲
 
 def create_gantt_chart(df, title="", display_mode="実績のみ"):
     if df.empty or 'タスク' not in df.columns:
@@ -133,6 +132,7 @@ def create_gantt_chart(df, title="", display_mode="実績のみ"):
 st.header("1. データをアップロード")
 uploaded_file = st.file_uploader("案件データを含むExcelまたはCSVファイルをアップロードしてください", type=["csv", "xlsx"])
 
+# ファイル更新時のキャッシュクリアロジック
 if "previous_filename" not in st.session_state:
     st.session_state.previous_filename = None
 if "tidy_df" not in st.session_state:
@@ -145,8 +145,12 @@ if uploaded_file is not None and uploaded_file.name != st.session_state.previous
         raw_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
     st.session_state.tidy_df = transform_and_clean_data(raw_df)
     st.session_state.previous_filename = uploaded_file.name
-    st.session_state.overall_filtered = False
-    st.session_state.monthly_filtered = False
+    # フィルター状態をリセット
+    if 'overall_filtered' in st.session_state:
+        del st.session_state.overall_filtered
+    if 'monthly_filtered' in st.session_state:
+        del st.session_state.monthly_filtered
+
 
 if not st.session_state.tidy_df.empty:
     base_tidy_df = st.session_state.tidy_df
@@ -161,13 +165,12 @@ if not st.session_state.tidy_df.empty:
     st.markdown("---")
     st.header("全体サマリー")
     if not tidy_df.empty:
-        unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates()
+        # お客様の正しいロジックを適用
+        pivoted_summary_df = tidy_df.pivot_table(index=['案件名', '契約金額', '入金額実績'], columns='タスク', values='日付', aggfunc='first').reset_index()
         
-        total_contract = unique_projects_df['契約金額'].sum()
+        total_contract = pivoted_summary_df['契約金額'].sum()
+        total_payment = pivoted_summary_df[pivoted_summary_df['入金'].notna()]['入金額実績'].sum() if '入金' in pivoted_summary_df.columns else 0
         
-        paid_project_names = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
-        total_payment = unique_projects_df[unique_projects_df['案件名'].isin(paid_project_names)]['入金額実績'].sum()
-
         s_col1, s_col2 = st.columns(2)
         s_col1.metric("契約金額 合計 (税込)", f"{total_contract/1000000:,.1f} 百万円")
         s_col2.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
@@ -181,7 +184,8 @@ if not st.session_state.tidy_df.empty:
         st.markdown("---")
         st.header("経営タイムライン全体（実績）")
         
-        if 'overall_filtered' not in st.session_state:
+        # セッションステートの初期化を修正
+        if 'start_date' not in st.session_state or 'overall_filtered' not in st.session_state:
             st.session_state.overall_filtered = True
             st.session_state.start_date = contracts_df['契約日'].min()
             st.session_state.end_date = contracts_df['契約日'].max()
