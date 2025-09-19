@@ -17,13 +17,9 @@ def transform_and_clean_data(_df):
     df = df.rename(columns=lambda x: x.strip())
     
     column_mapping = {
-        'カード表示名': '案件名',
-        '営業担当': '担当者名',
-        '初期売上': '契約金額',
-        '初期導入費（税込）': '入金額実績',
-        '契約日(実績)': '契約',
-        '完工日(実績)': '工事',
-        '初期費用入金日（実績）': '入金'
+        'カード表示名': '案件名', '営業担当': '担当者名', '初期売上': '契約金額',
+        '初期導入費（税込）': '入金額実績', '契約日(実績)': '契約',
+        '完工日(実績)': '工事', '初期費用入金日（実績）': '入金'
     }
     df.rename(columns=column_mapping, inplace=True)
     
@@ -46,7 +42,7 @@ def transform_and_clean_data(_df):
     value_vars = [v for v in value_vars if v in df.columns]
     
     if not value_vars:
-        return df
+        return pd.DataFrame()
 
     tidy_df = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='タスク', value_name='日付')
     tidy_df['日付'] = pd.to_datetime(tidy_df['日付'], errors='coerce')
@@ -141,6 +137,7 @@ if uploaded_file is not None:
             raw_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
         st.session_state.tidy_df = transform_and_clean_data(raw_df)
         st.session_state.previous_filename = uploaded_file.name
+        st.session_state.overall_filtered = False
         st.session_state.monthly_filtered = False
 
 if not st.session_state.tidy_df.empty:
@@ -156,13 +153,14 @@ if not st.session_state.tidy_df.empty:
     st.markdown("---")
     st.header("全体サマリー")
     if not tidy_df.empty:
-        unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates()
-        total_contract_tax_exc = unique_projects_df['契約金額'].sum()
-        total_payment = unique_projects_df['入金額実績'].sum()
+        pivoted_summary_df = tidy_df.pivot_table(index=['案件名', '契約金額', '入金額実績'], columns='タスク', values='日付', aggfunc='first').reset_index()
+        
+        total_contract_tax_exc = pivoted_summary_df['契約金額'].sum()
+        total_payment_tax_inc = pivoted_summary_df[pivoted_summary_df['入金'].notna()]['入金額実績'].sum() if '入金' in pivoted_summary_df.columns else 0
         
         s_col1, s_col2 = st.columns(2)
         s_col1.metric("契約金額 合計 (税抜)", f"{total_contract_tax_exc/1000000:,.1f} 百万円")
-        s_col2.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
+        s_col2.metric("入金額 合計 (税込)", f"{total_payment_tax_inc/1000000:,.1f} 百万円")
     else:
         st.info("集計対象のデータがありません。")
 
@@ -175,7 +173,7 @@ if not st.session_state.tidy_df.empty:
         
         with st.form("overall_form"):
             min_cal_date = contracts_df['契約日'].min()
-            max_cal_date = contracts_df['契約日'].max()
+            max_cal_date = date(2030, 12, 31)
             col1, col2 = st.columns(2)
             start_date = col1.date_input("表示開始日", value=min_cal_date, min_value=min_cal_date, max_value=max_cal_date)
             end_date = col2.date_input("表示終了日", value=max_cal_date, min_value=min_cal_date, max_value=max_cal_date)
@@ -217,24 +215,21 @@ if not st.session_state.tidy_df.empty:
         if st.session_state.monthly_filtered:
             contract_date_selection = st.session_state.contract_date_selection
             payment_date_selection = st.session_state.payment_date_selection
+            
+            pivoted_df = tidy_df.pivot_table(index=['案件名', '契約金額', '入金額実績'], columns='タスク', values='日付', aggfunc='first').reset_index()
+            pivoted_df['契約月'] = pd.to_datetime(pivoted_df.get('契約')).dt.to_period('M')
 
             selected_contract_month = pd.Period(contract_date_selection, 'M')
+            target_contracts = pivoted_df[pivoted_df['契約月'] == selected_contract_month]
+
+            total_contract_value = target_contracts['契約金額'].sum() * 1.1 # 税抜->税込
+
             selected_payment_month = pd.Period(payment_date_selection, 'M')
-            
-            contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
-            target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
-            
-            unique_target_contracts_info = target_contracts[['案件名', '契約金額', '入金額実績']].drop_duplicates()
-            total_contract_value = unique_target_contracts_info['契約金額'].sum() * 1.1 # 税抜->税込に変換
-            
-            target_project_names = target_contracts['案件名'].unique()
-            payments_df = tidy_df[tidy_df['案件名'].isin(target_project_names) & (tidy_df['タスク'] == '入金')]
             payment_deadline = (selected_payment_month.to_timestamp() + MonthEnd(1))
-            paid_payments = payments_df[payments_df['日付'] <= payment_deadline]
-            paid_project_names = paid_payments['案件名'].unique()
             
-            total_paid_value = unique_target_contracts_info[unique_target_contracts_info['案件名'].isin(paid_project_names)]['入金額実績'].sum()
-            total_unpaid_value = (unique_target_contracts_info['契約金額'].sum() * 1.1) - total_paid_value
+            paid_contracts = target_contracts[pd.to_datetime(target_contracts['入金']) <= payment_deadline]
+            total_paid_value = paid_contracts['入金額実績'].sum()
+            total_unpaid_value = total_contract_value - total_paid_value
 
             st.subheader(f"【サマリー】{selected_contract_month.strftime('%Y-%m')}契約 → {selected_payment_month.strftime('%Y-%m')}時点での入金状況")
             m_col1, m_col2, m_col3 = st.columns(3)
@@ -242,7 +237,7 @@ if not st.session_state.tidy_df.empty:
             m_col2.metric("入金済 合計 (税込)", f"{total_paid_value/1000000:,.1f} 百万円")
             m_col3.metric("未入金 合計 (税込)", f"{total_unpaid_value/1000000:,.1f} 百万円")
 
-            display_df_monthly = tidy_df[tidy_df['案件名'].isin(target_project_names)]
+            display_df_monthly = tidy_df[tidy_df['案件名'].isin(target_contracts['案件名'])]
             if not display_df_monthly.empty:
                 create_gantt_chart(display_df_monthly, title=f"{selected_contract_month.strftime('%Y-%m')}月契約案件 予実タイムライン", display_mode="予実両方")
 else:
