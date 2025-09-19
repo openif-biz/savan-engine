@@ -12,23 +12,27 @@ st.title("Gantt Line 経営タイムライン")
 def transform_and_clean_data(df):
     df = df.rename(columns=lambda x: x.strip())
     
+    # <<< 修正点: 「初期導入費（税込）」を「契約金額」の正解データとして使用 >>>
     column_mapping = {
         'カード表示名': '案件名',
         '営業担当': '担当者名',
-        '初期売上': '契約金額',
-        '初期導入費（税込）': '入金額実績',
+        '初期導入費（税込）': '契約金額', # ★ 正解データを「契約金額」とする
         '契約日(実績)': '契約',
         '完工日(実績)': '工事',
         '初期費用入金日（実績）': '入金'
     }
     df.rename(columns=column_mapping, inplace=True)
+
+    # 契約金額を基に入金額実績の列を作成（理論上同額になるため）
+    df['入金額実績'] = df['契約金額']
     
-    required_cols = ['案件名', '担当者名', '契約金額', '入金額実績']
+    required_cols = ['案件名', '担当者名', '契約金額']
     if not all(col in df.columns for col in required_cols):
-        st.error(f"必須列（{required_cols}）が見つかりません。")
+        st.error(f"必須列（カード表示名, 営業担当, 初期導入費（税込））が見つかりません。")
         return pd.DataFrame()
 
-    df['契約金額'] = pd.to_numeric(df['契約金額'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce') * 1.1
+    # <<< 修正点: 1.1倍の計算を廃止し、正解データを直接クレンジング >>>
+    df['契約金額'] = pd.to_numeric(df['契約金額'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
     df['入金額実績'] = pd.to_numeric(df['入金額実績'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
 
     id_vars = ['案件名', '担当者名', '契約金額', '入金額実績']
@@ -153,7 +157,6 @@ if uploaded_file:
             st.markdown("---")
             st.header("全体サマリー")
             if not tidy_df.empty:
-                # <<< 修正点: 重複を除外した正しい集計ロジック >>>
                 unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates()
                 total_contract = unique_projects_df['契約金額'].sum()
 
@@ -229,7 +232,6 @@ if uploaded_file:
                         contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
                         target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
                         
-                        # <<< 修正点: 重複を除外した正しい月次集計ロジック >>>
                         unique_target_contracts = target_contracts[['案件名', '契約金額', '入金額実績']].drop_duplicates()
                         total_contract_value = unique_target_contracts['契約金額'].sum()
                         
