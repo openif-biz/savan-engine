@@ -12,11 +12,10 @@ st.title("Gantt Line 経営タイムライン")
 def transform_and_clean_data(df):
     df = df.rename(columns=lambda x: x.strip())
     
-    # <<< 修正点: 新しいExcelの列名に対応 >>>
     column_mapping = {
         'カード表示名': '案件名',
         '営業担当': '担当者名',
-        '初期売上': '契約金額',  # 「初期売上」を読み込み、内部では「契約金額」として扱う
+        '初期売上': '契約金額',
         '契約日(実績)': '契約',
         '完工日(実績)': '工事',
         '初期費用入金日（実績）': '入金'
@@ -29,11 +28,11 @@ def transform_and_clean_data(df):
         return pd.DataFrame()
 
     id_vars = ['案件名', '担当者名', '契約金額']
-    value_vars = ['契約', '工事', '入金'] # 「請求」は元データにないので除外
+    value_vars = ['契約', '工事', '入金']
     value_vars = [v for v in value_vars if v in df.columns]
     
-    # <<< 修正点: 契約金額を数値に変換し、1.1倍（消費税込みに） >>>
-    df['契約金額'] = pd.to_numeric(df['契約金額'], errors='coerce') * 1.1
+    # <<< 修正点: 金額からカンマを除去してから数値に変換し、1.1倍する >>>
+    df['契約金額'] = pd.to_numeric(df['契約金額'].astype(str).str.replace(',', ''), errors='coerce') * 1.1
     
     tidy_df = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='タスク', value_name='日付')
     
@@ -156,13 +155,12 @@ if uploaded_file:
                 pivoted_summary_df = tidy_df.pivot_table(index=['案件名', '担当者名', '契約金額'], columns='タスク', values='日付', aggfunc='first').reset_index()
 
                 total_contract = pivoted_summary_df['契約金額'].sum()
-                total_construction = pivoted_summary_df[pivoted_summary_df['工事'].notna()]['契約金額'].sum() if '工事' in pivoted_summary_df.columns else 0
                 total_payment = pivoted_summary_df[pivoted_summary_df['入金'].notna()]['契約金額'].sum() if '入金' in pivoted_summary_df.columns else 0
                 
-                s_col1, s_col2, s_col3 = st.columns(3)
+                # <<< 修正点: 「工事完了金額」を削除し、2列表示に >>>
+                s_col1, s_col2 = st.columns(2)
                 s_col1.metric("契約金額 合計 (税込)", f"{total_contract/1000000:,.1f} 百万円")
-                s_col2.metric("工事完了金額 合計 (税込)", f"{total_construction/1000000:,.1f} 百万円")
-                s_col3.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
+                s_col2.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
             else:
                 st.info("集計対象のデータがありません。")
 
@@ -254,3 +252,4 @@ if uploaded_file:
         st.exception(e)
 else:
     st.info("ファイルをアップロードすると、タイムラインが表示されます。")
+
