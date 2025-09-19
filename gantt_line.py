@@ -28,34 +28,19 @@ def transform_and_clean_data(df):
         st.error(f"必須列（{required_cols}）が見つかりません。")
         return pd.DataFrame()
 
-    # <<< 修正点: 契約金額・入金額とも正規化のみ。*1.1 は削除 >>>
-    df['契約金額'] = pd.to_numeric(
-        df['契約金額'].astype(str).str.replace(r'[^\d.]', '', regex=True),
-        errors='coerce'
-    )
-    df['入金額実績'] = pd.to_numeric(
-        df['入金額実績'].astype(str).str.replace(r'[^\d.]', '', regex=True),
-        errors='coerce'
-    )
+    df['契約金額'] = pd.to_numeric(df['契約金額'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce') * 1.1
+    df['入金額実績'] = pd.to_numeric(df['入金額実績'].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce')
 
     id_vars = ['案件名', '担当者名', '契約金額', '入金額実績']
     value_vars = ['契約', '工事', '入金']
     value_vars = [v for v in value_vars if v in df.columns]
     
-    tidy_df = pd.melt(
-        df,
-        id_vars=id_vars,
-        value_vars=value_vars,
-        var_name='タスク',
-        value_name='日付'
-    )
-    
+    tidy_df = pd.melt(df, id_vars=id_vars, value_vars=value_vars, var_name='タスク', value_name='日付')
     tidy_df['日付'] = pd.to_datetime(tidy_df['日付'], errors='coerce')
     tidy_df.dropna(subset=['日付'], inplace=True)
     
     return tidy_df
 
-# --- 日付を安全な範囲に丸めるヘルパー関数 ---
 def clamp_date(dt, min_dt, max_dt):
     return max(min_dt, min(dt, max_dt))
 
@@ -66,12 +51,7 @@ def create_gantt_chart(df, title="", display_mode="実績のみ"):
         return
 
     gantt_data = []
-    pivoted_df = df.pivot_table(
-        index=['案件名', '担当者名'],
-        columns='タスク',
-        values='日付',
-        aggfunc='first'
-    ).reset_index()
+    pivoted_df = df.pivot_table(index=['案件名', '担当者名'], columns='タスク', values='日付', aggfunc='first').reset_index()
     pivoted_df = pivoted_df.sort_values(by=['担当者名', '案件名']).reset_index(drop=True)
 
     colors = {
@@ -85,7 +65,6 @@ def create_gantt_chart(df, title="", display_mode="実績のみ"):
         y_label_base = f"{row['案件名']} - {row['担当者名']}"
         contract_date = row.get('契約')
 
-        # 予実両方の表示
         if display_mode == "予実両方" and pd.notna(contract_date):
             y_label_plan = f"{y_label_base} (予定)"
             plan_const_end = contract_date + relativedelta(months=3)
@@ -99,7 +78,6 @@ def create_gantt_chart(df, title="", display_mode="実績のみ"):
             gantt_data.append(dict(Task=y_label_plan, Start=plan_invoice_start, Finish=plan_invoice_end, Resource='請求 (予定)'))
             gantt_data.append(dict(Task=y_label_plan, Start=plan_payment_start, Finish=plan_payment_end, Resource='入金 (予定)'))
         
-        # 実績
         y_label_actual = f"{y_label_base} (実績)" if display_mode == "予実両方" else y_label_base
         construction_date = row.get('工事')
         payment_date = row.get('入金')
@@ -119,22 +97,14 @@ def create_gantt_chart(df, title="", display_mode="実績のみ"):
         df_gantt = pd.DataFrame(gantt_data)
         if display_mode == "予実両方":
             df_gantt['sort_key'] = df_gantt['Task'].apply(lambda x: 0 if '(予定)' in x else 1)
-            df_gantt['base_task'] = df_gantt['Task'].str.replace(' (予定)', '').str.replace(' (実績)', '')
+            df_gantt['base_task'] = df_gantt['Task'].str.replace(' (予定)', '').replace(' (実績)', '')
             df_gantt = df_gantt.sort_values(by=['base_task', 'sort_key'])
         
         gantt_data_sorted = df_gantt.to_dict('records')
         unique_tasks = len(df_gantt['Task'].unique())
         chart_height = unique_tasks * 20 + 150
 
-        fig = ff.create_gantt(
-            gantt_data_sorted,
-            colors=colors,
-            index_col='Resource',
-            show_colorbar=True,
-            group_tasks=True,
-            showgrid_x=True,
-            showgrid_y=True
-        )
+        fig = ff.create_gantt(gantt_data_sorted, colors=colors, index_col='Resource', show_colorbar=True, group_tasks=True, showgrid_x=True, showgrid_y=True)
         for trace in fig.data:
             trace.name = trace.name.replace(' (予定)', '').replace(' (実績)', '')
         fig.update_layout(margin=dict(t=80, b=50), legend_title_text='凡例', height=chart_height, title=dict(text=title, x=0.5))
@@ -181,16 +151,16 @@ if uploaded_file:
             st.markdown("---")
             st.header("全体サマリー")
             if not tidy_df.empty:
-                # <<< 修正版: 契約金額/入金額を drop_duplicates ベースで正しく集計 >>>
-                unique_projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates()
-                total_contract = unique_projects_df['契約金額'].sum()
+                # <<< 修正済: 案件ごとに1行だけで集計 >>>
+                projects_df = tidy_df[['案件名', '契約金額', '入金額実績']].drop_duplicates('案件名')
+                total_contract = projects_df['契約金額'].sum()
 
-                paid_project_names = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
-                total_payment = unique_projects_df[unique_projects_df['案件名'].isin(paid_project_names)]['入金額実績'].sum()
+                paid_projects = tidy_df[tidy_df['タスク'] == '入金']['案件名'].unique()
+                total_payment = projects_df[projects_df['案件名'].isin(paid_projects)]['入金額実績'].sum()
                 
                 s_col1, s_col2 = st.columns(2)
-                s_col1.metric("契約金額 合計", f"{total_contract/1000000:,.1f} 百万円")
-                s_col2.metric("入金額 合計", f"{total_payment/1000000:,.1f} 百万円")
+                s_col1.metric("契約金額 合計 (税込)", f"{total_contract/1000000:,.1f} 百万円")
+                s_col2.metric("入金額 合計 (税込)", f"{total_payment/1000000:,.1f} 百万円")
             else:
                 st.info("集計対象のデータがありません。")
 
@@ -257,8 +227,7 @@ if uploaded_file:
                         contracts_df['契約月'] = contracts_df['日付'].dt.to_period('M')
                         target_contracts = contracts_df[contracts_df['契約月'] == selected_contract_month]
                         
-                        # <<< 修正版: 契約金額・入金額を案件単位で正しく集計 >>>
-                        unique_target_contracts = target_contracts[['案件名', '契約金額', '入金額実績']].drop_duplicates()
+                        unique_target_contracts = target_contracts[['案件名', '契約金額', '入金額実績']].drop_duplicates('案件名')
                         total_contract_value = unique_target_contracts['契約金額'].sum()
                         
                         target_project_names = target_contracts['案件名'].unique()
@@ -272,9 +241,9 @@ if uploaded_file:
 
                         st.subheader(f"【サマリー】{selected_contract_month.strftime('%Y-%m')}契約 → {selected_payment_month.strftime('%Y-%m')}時点での入金状況")
                         m_col1, m_col2, m_col3 = st.columns(3)
-                        m_col1.metric(f"{selected_contract_month.strftime('%Y-%m')}月 契約総額", f"{total_contract_value/1000000:,.1f} 百万円")
-                        m_col2.metric("入金済 合計", f"{total_paid_value/1000000:,.1f} 百万円")
-                        m_col3.metric("未入金 合計", f"{total_unpaid_value/1000000:,.1f} 百万円")
+                        m_col1.metric(f"{selected_contract_month.strftime('%Y-%m')}月 契約総額 (税込)", f"{total_contract_value/1000000:,.1f} 百万円")
+                        m_col2.metric("入金済 合計 (税込)", f"{total_paid_value/1000000:,.1f} 百万円")
+                        m_col3.metric("未入金 合計 (税込)", f"{total_unpaid_value/1000000:,.1f} 百万円")
 
                         display_df_monthly = tidy_df[tidy_df['案件名'].isin(target_project_names)]
                         if not display_df_monthly.empty:
