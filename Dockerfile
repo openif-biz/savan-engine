@@ -16,4 +16,5 @@ EXPOSE 8501
 
 # Define the command to run the app
 # This makes the app accessible from outside the container on the specified port
-CMD ["streamlit", "run", "gantt_line.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# It will use the $PORT from the environment, or default to 8501 if it's not set.
+CMD streamlit run gantt_line.py --server.port=${PORT:-8501} --server.address=0.0.0.0
