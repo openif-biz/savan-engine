@@ -16,6 +16,8 @@ env:
 # 実行する仕事（ジョブ）の内容
 jobs:
   deploy:
+    # このジョブはコミットメッセージに [to-gcp] が含まれる場合のみ実行する
+    if: "contains(github.event.head_commit.message, '[to-gcp]')"
     # ジョブを実行する仮想環境の種類
     runs-on: ubuntu-latest
 
