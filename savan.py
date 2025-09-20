@@ -47,15 +47,16 @@ def test_app(file_path):
     except Exception:
         return False
 
-def push_to_github(timestamp):
+def push_to_github(timestamp, target): # target を受け取る
     """
     (この関数の中身は、以前ユキさんが持っていた実装のままにしてください)
     """
     print("[SAVAN] GitHubへのpushを実行します...")
     # (仮の実装)
     try:
+        commit_message = f"SAVAN: Auto-generate app at {timestamp} [to-{target}]" # メッセージに荷札を追加
         subprocess.run(["git", "add", "generated_apps/"], check=True)
-        subprocess.run(["git", "commit", "-m", f"SAVAN: Auto-generate app at {timestamp}"], check=True)
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
         subprocess.run(["git", "push", "origin", "main"], check=True)
         return True
     except subprocess.CalledProcessError:
@@ -72,11 +73,11 @@ def deploy_on_linode():
 
 # --- メインのワークフロー（exceptブロックに学習機能を追加）---
 
-def main_workflow():
+def main_workflow(target): # target を受け取る
     """
     メインのワークフロー。エラーが発生した場合、ナレッジベースを検索する。
     """
-    print("===== SAVAN 自動化ワークフロー開始 =====")
+    print(f"===== SAVAN 自動化ワークフロー開始 (ターゲット: {target.upper()}) =====")
     try:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         
@@ -85,13 +86,16 @@ def main_workflow():
         if not test_app(generated_file):
             raise Exception("アプリのテストに失敗しました。")
 
-        if not push_to_github(timestamp):
+        if not push_to_github(timestamp, target): # target を渡す
             raise Exception("GitHubへのpushに失敗しました。")
 
-        if not deploy_on_linode():
-            raise Exception("Linodeへのデプロイに失敗しました。")
-            
-        print("===== SAVAN 自動化ワークフロー正常完了 =====")
+        # この関数は現在、直接的なデプロイは行わないが、ロジックの骨格として残す
+        if target == "linode":
+            if not deploy_on_linode():
+                raise Exception("Linodeへのデプロイに失敗しました。")
+        
+        print(f"[SAVAN] GitHub Actionsを通じて [{target.upper()}] へのデプロイを起動しました。")
+        print(f"===== SAVAN 自動化ワークフロー正常完了 (ターゲット: {target.upper()}) =====")
 
     except Exception as e:
         print(f"\n!!!!! ワークフロー実行中にエラーが発生しました !!!!!")
@@ -106,7 +110,18 @@ def main_workflow():
         # ---【学習機能ここまで】---
 
 if __name__ == "__main__":
-    if "--start" in sys.argv:
-        main_workflow()
+    # 実行時の引数を解析して、ターゲットを決定する
+    target = None
+    for arg in sys.argv:
+        if arg.startswith("--target="):
+            target = arg.split("=")[1]
+
+    if target in ["linode", "gcp"]:
+        main_workflow(target)
     else:
-        print("実行方法: python savan.py --start")
+        # 以前の --start も動くように互換性を維持
+        if "--start" in sys.argv:
+             print("警告: --start は非推奨です。--target=linode を使用してください。")
+             main_workflow("linode")
+        else:
+             print("実行方法: python savan.py --target=linode または python savan.py --target=gcp")
