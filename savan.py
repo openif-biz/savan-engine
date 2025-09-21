@@ -125,3 +125,4 @@ if __name__ == "__main__":
              main_workflow("linode")
         else:
              print("実行方法: python savan.py --target=linode または python savan.py --target=gcp")
+    # １次的に追加次削除してください
