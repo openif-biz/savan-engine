@@ -3,3 +3,4 @@ pandas
 plotly
 python-dateutil
 openpyxl
+streamlit-oauth
