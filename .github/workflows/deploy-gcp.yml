@@ -41,7 +41,10 @@ jobs:
 
       - name: Build and Push Container
         run: |-
-          gcloud builds submit --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          gcloud builds submit . \
+            --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --project=${{ env.PROJECT_ID }} \
+            --service-account="projects/${{ env.PROJECT_ID }}/serviceAccounts/${{ env.PROJECT_ID }}@cloudbuild.gserviceaccount.com"
 
       - name: Deploy to Cloud Run
         run: |-
