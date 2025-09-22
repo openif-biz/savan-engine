@@ -1,3 +1,4 @@
+# 【通番02】GCPデプロイワークフローの全体修正
 # ワークフロー全体の名前
 name: SAVAN Deploy to Google Cloud Run
 
@@ -5,12 +6,12 @@ name: SAVAN Deploy to Google Cloud Run
 on:
   push:
     branches:
-      - main  # mainブランチにpushされた時だけ実行
+      - main # mainブランチにpushされた時だけ実行
 
 # 環境変数の設定
 env:
-  PROJECT_ID: openif-469110
-  GAR_LOCATION: us-central1
+  PROJECT_ID: gantt-line # 変更：新しいプロジェクトID
+  GAR_LOCATION: asia-northeast1 # 変更：リージョンを東京に
   SERVICE_NAME: gantt-line
   REPO_NAME: gantt-line-repo
 
@@ -34,7 +35,8 @@ jobs:
         id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          # 変更：秘密鍵の名前を更新
+          credentials_json: '${{ secrets.GCP_DEPLOY_KEY }}'
 
       - name: Set up Cloud SDK
         uses: 'google-github-actions/setup-gcloud@v2'
@@ -43,17 +45,11 @@ jobs:
         run: |-
           gcloud builds submit --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
-      # ▼▼▼【ここから変更】▼▼▼
-      - name: Create environment variable file
-        run: |
-          echo "GCP_SA_KEY: '${{ secrets.GCP_SA_KEY }}'" > env.yaml
-
-      - name: Deploy to Cloud Run using env file
+      - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --region ${{ env.GAR_LOCATION }} \
             --platform managed \
             --no-allow-unauthenticated \
-            --env-vars-file=env.yaml
-      # ▲▲▲【ここまで変更】▲▲▲
+            --set-env-vars="GCP_SA_KEY=${{ secrets.GCP_DEPLOY_KEY }}" # 変更：env.yamlを廃止し、環境変数を直接設定
