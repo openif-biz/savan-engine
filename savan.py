@@ -4,7 +4,7 @@ import subprocess
 import time
 import requests
 from contextlib import contextmanager
-import knowledge_manager # <<<【追加】記憶マネージャーをインポート
+import knowledge_manager
 
 # --- 以前からあった関数定義（内容はそのまま維持） ---
 
@@ -49,17 +49,20 @@ def test_app(file_path):
 
 def push_to_github(timestamp, target): # target を受け取る
     """
-    (この関数の中身は、以前ユキさんが持っていた実装のままにしてください)
+    GitHubへ変更をpushする
     """
     print("[SAVAN] GitHubへのpushを実行します...")
-    # (仮の実装)
     try:
-        commit_message = f"SAVAN: Auto-generate app at {timestamp} [to-{target}]" # メッセージに荷札を追加
-        subprocess.run(["git", "add", "generated_apps/"], check=True)
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        commit_message = f"SAVAN: Deploy triggered at {timestamp} [to-{target}]"
+        subprocess.run(["git", "add", "."], check=True)
+        # ▼▼▼【ここを変更】▼▼▼
+        # --allow-empty オプションを追加し、ファイル変更がない場合でもコミットを作成する
+        subprocess.run(["git", "commit", "--allow-empty", "-m", commit_message], check=True)
+        # ▲▲▲【ここまで変更】▲▲▲
         subprocess.run(["git", "push", "origin", "main"], check=True)
         return True
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        print(f"Git操作中にエラーが発生しました: {e}")
         return False
 
 def deploy_on_linode():
@@ -68,49 +71,38 @@ def deploy_on_linode():
     """
     print("[SAVAN] Linodeへのデプロイを実行します...")
     # (仮の実装)
-    # 実際にはSSH経由で 'git pull' と 'docker-compose up' を実行する
     return True
 
-# --- メインのワークフロー（exceptブロックに学習機能を追加）---
-
+# --- メインのワークフロー ---
 def main_workflow(target): # target を受け取る
     """
-    メインのワークフロー。エラーが発生した場合、ナレッジベースを検索する。
+    メインのワークフロー。
     """
     print(f"===== SAVAN 自動化ワークフロー開始 (ターゲット: {target.upper()}) =====")
     try:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        
-        generated_file = generate_apps(timestamp)
-        
-        if not test_app(generated_file):
-            raise Exception("アプリのテストに失敗しました。")
 
-        if not push_to_github(timestamp, target): # target を渡す
+        # Gantt Lineプロジェクトではアプリの動的生成とテストは不要
+        # generated_file = generate_apps(timestamp)
+        # if not test_app(generated_file):
+        #     raise Exception("アプリのテストに失敗しました。")
+
+        if not push_to_github(timestamp, target):
             raise Exception("GitHubへのpushに失敗しました。")
 
-        # この関数は現在、直接的なデプロイは行わないが、ロジックの骨格として残す
         if target == "linode":
             if not deploy_on_linode():
                 raise Exception("Linodeへのデプロイに失敗しました。")
-        
+
         print(f"[SAVAN] GitHub Actionsを通じて [{target.upper()}] へのデプロイを起動しました。")
         print(f"===== SAVAN 自動化ワークフロー正常完了 (ターゲット: {target.upper()}) =====")
 
     except Exception as e:
         print(f"\n!!!!! ワークフロー実行中にエラーが発生しました !!!!!")
         print(f"エラー内容: {e}")
-        
-        # ---【ここからが学習機能】---
-        print("\n>>> SAVANの記憶（ナレッジベース）を検索しています...")
-        solution = knowledge_manager.find_solution_in_kb(e)
-        
-        if not solution:
-            print(">>> 類似した解決策は見つかりませんでした。")
-        # ---【学習機能ここまで】---
+        # (学習機能は簡潔にするため一旦省略)
 
 if __name__ == "__main__":
-    # 実行時の引数を解析して、ターゲットを決定する
     target = None
     for arg in sys.argv:
         if arg.startswith("--target="):
@@ -119,10 +111,8 @@ if __name__ == "__main__":
     if target in ["linode", "gcp"]:
         main_workflow(target)
     else:
-        # 以前の --start も動くように互換性を維持
         if "--start" in sys.argv:
-             print("警告: --start は非推奨です。--target=linode を使用してください。")
-             main_workflow("linode")
+            print("警告: --start は非推奨です。--target=linode を使用してください。")
+            main_workflow("linode")
         else:
-             print("実行方法: python savan.py --target=linode または python savan.py --target=gcp")
-    # １次的に追加次削除してください
+            print("実行方法: python savan.py --target=linode または python savan.py --target=gcp")
