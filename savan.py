@@ -53,7 +53,10 @@ def push_to_github(timestamp, target): # target を受け取る
     """
     print("[SAVAN] GitHubへのpushを実行します...")
     try:
-        commit_message = f"SAVAN: Deploy triggered at {timestamp} [to-{target}]"
+        if target == "gcp":
+            commit_message = f"SAVAN: Deploy triggered at {timestamp} [to-{target}]"
+        else:
+            commit_message = f"SAVAN: Deploy triggered at {timestamp}"
         subprocess.run(["git", "add", "."], check=True)
         # ▼▼▼【ここを変更】▼▼▼
         # --allow-empty オプションを追加し、ファイル変更がない場合でもコミットを作成する
@@ -85,7 +88,7 @@ def main_workflow(target): # target を受け取る
         # Gantt Lineプロジェクトではアプリの動的生成とテストは不要
         # generated_file = generate_apps(timestamp)
         # if not test_app(generated_file):
-        #     raise Exception("アプリのテストに失敗しました。")
+        #   raise Exception("アプリのテストに失敗しました。")
 
         if not push_to_github(timestamp, target):
             raise Exception("GitHubへのpushに失敗しました。")
