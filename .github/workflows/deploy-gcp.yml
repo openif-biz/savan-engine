@@ -1,4 +1,3 @@
-# 【通番02】GCPデプロイワークフローの全体修正
 # ワークフロー全体の名前
 name: SAVAN Deploy to Google Cloud Run
 
@@ -6,12 +5,12 @@ name: SAVAN Deploy to Google Cloud Run
 on:
   push:
     branches:
-      - main # mainブランチにpushされた時だけ実行
+      - main  # mainブランチにpushされた時だけ実行
 
 # 環境変数の設定
 env:
-  PROJECT_ID: gantt-line # 変更：新しいプロジェクトID
-  GAR_LOCATION: asia-northeast1 # 変更：リージョンを東京に
+  PROJECT_ID: gantt-line
+  GAR_LOCATION: asia-northeast1
   SERVICE_NAME: gantt-line
   REPO_NAME: gantt-line-repo
 
@@ -35,7 +34,6 @@ jobs:
         id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
-          # 変更：秘密鍵の名前を更新
           credentials_json: '${{ secrets.GCP_DEPLOY_KEY }}'
 
       - name: Set up Cloud SDK
@@ -51,5 +49,4 @@ jobs:
             --image ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --region ${{ env.GAR_LOCATION }} \
             --platform managed \
-            --no-allow-unauthenticated \
-            --set-env-vars="GCP_SA_KEY=${{ secrets.GCP_DEPLOY_KEY }}" # 変更：env.yamlを廃止し、環境変数を直接設定
+            --no-allow-unauthenticated
