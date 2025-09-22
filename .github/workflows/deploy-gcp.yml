@@ -14,7 +14,7 @@ env:
   SERVICE_NAME: gantt-line
   REPO_NAME: gantt-line
 
-# 実行する仕事（ジョブ）の内容
+# 実行する仕事（ジョブ）
 jobs:
   deploy:
     # このジョブはコミットメッセージに [to-gcp] が含まれる場合のみ実行する
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build and Push Container
         run: |-
-          gcloud builds submit --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} --service-account="projects/${{ env.PROJECT_ID }}/serviceAccounts/${{ env.PROJECT_ID }}@cloudbuild.gserviceaccount.com"
+          gcloud builds submit --tag ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
