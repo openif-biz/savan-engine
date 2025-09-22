@@ -281,4 +281,4 @@ if not raw_df.empty:
         else:
             st.warning("フィルタリング対象の契約データが見つかりません。")
 else:
-    st.info("Googleスプレッドシートからデータを読み込んでいます...")
+    st.info("Googleスプレッドシートからデータを読み込んでいます...")# Final deployment trigger from PS
