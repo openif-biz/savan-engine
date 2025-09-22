@@ -9,10 +9,10 @@ on:
 
 # 環境変数の設定
 env:
-  PROJECT_ID: gantt-line
+  PROJECT_ID: openif-469110
   GAR_LOCATION: asia-northeast1
   SERVICE_NAME: gantt-line
-  REPO_NAME: gantt-line-repo
+  REPO_NAME: gantt-line
 
 # 実行する仕事（ジョブ）の内容
 jobs:
