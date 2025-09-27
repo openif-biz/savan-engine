@@ -1,4 +1,4 @@
-# knowledge_manager.py
+# knowledge_manager.py (修正版)
 
 import json
 
@@ -21,9 +21,11 @@ def save_experience(new_experience):
         with open(KB_FILE_PATH, 'w', encoding='utf-8') as f:
             json.dump(knowledge_base, f, indent=2, ensure_ascii=False)
         print(f"INFO: 新しい経験（ID: {new_experience.get('experience_id')}）を記憶しました。")
+        return True
+    return False
 
 def find_solution_in_kb(new_error_message):
-    """新しいエラーメッセージに類似した過去の解決策を探す"""
+    """新しいエラーメッセージに類似した過去の解決策を探す（キーワード検索強化版）"""
     knowledge_base = load_knowledge_base()
     
     new_error_str = str(new_error_message).lower()
@@ -33,11 +35,14 @@ def find_solution_in_kb(new_error_message):
 
     for experience in knowledge_base:
         symptom = experience.get('symptom', {})
-        past_error_message = symptom.get('error_message', '').lower()
         
-        # 簡単な類似度スコア（ここでは単純な部分一致で代用）
-        if past_error_message in new_error_str:
-            score = len(past_error_message) # 文字数が長いほど、より特異的とみなし高スコア
+        # キーワードベースの類似度スコアを計算
+        keywords = symptom.get('keywords', [])
+        match_count = sum(1 for keyword in keywords if keyword.lower() in new_error_str)
+        
+        if match_count > 0:
+            # スコアリングロジック：キーワードの一致数をスコアとする
+            score = match_count
             if score > highest_score:
                 highest_score = score
                 best_match = experience

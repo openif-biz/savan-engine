@@ -6,7 +6,7 @@ import requests
 from contextlib import contextmanager
 import knowledge_manager
 
-# --- 以前からあった関数定義（内容はそのまま維持） ---
+# --- 以前からあった関数定義 ---
 
 @contextmanager
 def run_streamlit_server(file_path, port=8501):
@@ -58,10 +58,8 @@ def push_to_github(timestamp, target): # target を受け取る
         else:
             commit_message = f"SAVAN: Deploy triggered at {timestamp}"
         subprocess.run(["git", "add", "."], check=True)
-        # ▼▼▼【ここを変更】▼▼▼
-        # --allow-empty オプションを追加し、ファイル変更がない場合でもコミットを作成する
+        # ファイル変更がない場合でもコミットを作成する
         subprocess.run(["git", "commit", "--allow-empty", "-m", commit_message], check=True)
-        # ▲▲▲【ここまで変更】▲▲▲
         subprocess.run(["git", "push", "origin", "main"], check=True)
         return True
     except subprocess.CalledProcessError as e:
@@ -79,23 +77,25 @@ def deploy_on_linode():
 # --- メインのワークフロー ---
 def main_workflow(target): # target を受け取る
     """
-    メインのワークフロー。
+    メインのワークフロー。エラー発生時に自己解決を試みる。
     """
     print(f"===== SAVAN 自動化ワークフロー開始 (ターゲット: {target.upper()}) =====")
     try:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-        # Gantt Lineプロジェクトではアプリの動的生成とテストは不要
+        # Gantt Lineプロジェクトではアプリの動的生成とテストは不要なためコメントアウト
         # generated_file = generate_apps(timestamp)
         # if not test_app(generated_file):
-        #   raise Exception("アプリのテストに失敗しました。")
+        #     raise Exception("アプリのテストに失敗しました。")
 
         if not push_to_github(timestamp, target):
             raise Exception("GitHubへのpushに失敗しました。")
 
         if target == "linode":
-            if not deploy_on_linode():
-                raise Exception("Linodeへのデプロイに失敗しました。")
+            # GitHub Actions経由で実行されるため、ここでの直接実行は不要
+            # if not deploy_on_linode():
+            #     raise Exception("Linodeへのデプロイに失敗しました。")
+            pass
 
         print(f"[SAVAN] GitHub Actionsを通じて [{target.upper()}] へのデプロイを起動しました。")
         print(f"===== SAVAN 自動化ワークフロー正常完了 (ターゲット: {target.upper()}) =====")
@@ -103,17 +103,27 @@ def main_workflow(target): # target を受け取る
     except Exception as e:
         print(f"\n!!!!! ワークフロー実行中にエラーが発生しました !!!!!")
         print(f"エラー内容: {e}")
-        # (学習機能は簡潔にするため一旦省略)
+        
+        # ---【ここからが自己解決（学習）機能】---
+        print("\n>>> SAVANの記憶（ナレッジベース）を検索しています...")
+        solution = knowledge_manager.find_solution_in_kb(e)
+        
+        if not solution:
+            print(">>> 類似した解決策は見つかりませんでした。")
+        # ---【自己解決機能ここまで】---
 
 if __name__ == "__main__":
     target = None
+    # コマンドライン引数から --target を解析
     for arg in sys.argv:
         if arg.startswith("--target="):
             target = arg.split("=")[1]
 
+    # target が指定されている場合のみワークフローを実行
     if target in ["linode", "gcp"]:
         main_workflow(target)
     else:
+        # 非推奨の--start引数も後方互換性のために残すが、警告を出す
         if "--start" in sys.argv:
             print("警告: --start は非推奨です。--target=linode を使用してください。")
             main_workflow("linode")
