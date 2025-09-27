@@ -2,151 +2,109 @@ import sys
 import os
 import subprocess
 import time
-import requests
-import yaml  # YAMLファイルを読み込むために追加
+import yaml
 from contextlib import contextmanager
 import knowledge_manager
 
 # --- 関数定義 ---
 
-@contextmanager
-def run_streamlit_server(file_path, port=8501):
-    """Streamlitアプリをバックグラウンドで起動し、終了時に確実に停止する"""
-    command = ["streamlit", "run", file_path, "--server.port", str(port), "--server.headless", "true"]
-    server_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print(f"[SAVAN] テストサーバー起動中... (PID: {server_process.pid})")
-    time.sleep(10) # サーバーが完全に起動するのを待つ
-    yield f"http://localhost:{port}"
-    print(f"[SAVAN] テストサーバー停止中... (PID: {server_process.pid})")
-    server_process.terminate()
-    server_process.wait()
-    print("[SAVAN] サーバー停止完了")
+def get_project_path(project_name):
+    """プロジェクト名からプロジェクトの絶対パスを取得する"""
+    # このスクリプト(savan.py)の親ディレクトリを基準とする
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    project_path = os.path.join(base_dir, '..', 'projects', project_name)
+    return os.path.abspath(project_path)
 
-def generate_apps(spec_path="app_spec.yml"):
+def push_to_github(project_path, timestamp, target):
     """
-    設計仕様書(YAML)を読み込み、アプリケーションのソースコードを自動生成する。
+    指定されたプロジェクトのディレクトリに移動し、GitHubへ変更をpushする
     """
-    print(f"[SAVAN] 設計仕様書 {spec_path} に基づき、アプリの自動生成を実行します...")
+    print(f"[SAVAN] プロジェクト {os.path.basename(project_path)} のGitHubへのpushを実行します...")
     
+    # --- 重要：Git操作の前に、必ずプロジェクトのディレクトリに移動する ---
+    original_cwd = os.getcwd()
     try:
-        with open(spec_path, 'r', encoding='utf-8') as f:
-            spec = yaml.safe_load(f)
-    except FileNotFoundError:
-        print(f"ERROR: 設計仕様書 {spec_path} が見つかりません。savan.pyと同じ階層に配置してください。")
-        raise
-    except yaml.YAMLError as e:
-        print(f"ERROR: 設計仕様書 {spec_path} の解析中にエラーが発生しました: {e}")
-        raise
+        os.chdir(project_path)
+        print(f"[SAVAN] 作業ディレクトリを {project_path} に変更しました。")
 
-    app_name = spec.get("appName", "GeneratedApp")
-    app_type = spec.get("appType", "Streamlit")
-
-    if app_type != "Streamlit":
-        raise NotImplementedError("現在、Streamlitアプリの生成のみ対応しています。")
-
-    code_lines = [
-        "import streamlit as st",
-        "",
-        f"st.set_page_config(page_title='{app_name}')",
-        ""
-    ]
-
-    for component in spec.get("components", []):
-        comp_type = component.get("type")
-        if comp_type == "title":
-            code_lines.append(f"st.title(\"{component.get('text', '')}\")")
-        elif comp_type == "button":
-            label = component.get('label', 'Button')
-            action = component.get('action', {})
-            if action.get('type') == 'show_message':
-                message = action.get('message', '')
-                code_lines.append(f"if st.button(\"{label}\"):")
-                code_lines.append(f"    st.success(\"{message}\")")
-
-    generated_code = "\n".join(code_lines)
-
-    apps_dir = "generated_apps"
-    os.makedirs(apps_dir, exist_ok=True)
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    app_file_path = os.path.join(apps_dir, f"{app_name}_{timestamp}.py")
-    
-    with open(app_file_path, "w", encoding="utf-8") as f:
-        f.write(generated_code)
-    
-    print(f"[SAVAN] アプリケーションコードを {app_file_path} に生成しました。")
-    return app_file_path
-
-def test_app(file_path):
-    """
-    生成されたアプリが正常に起動し、HTTP 200を返すかテストする。
-    """
-    print(f"[SAVAN] アプリのテストを実行します: {file_path}")
-    try:
-        with run_streamlit_server(file_path) as url:
-            response = requests.get(url, timeout=20)
-            if response.status_code == 200:
-                print(f"[SAVAN] テスト成功: {url} は正常に応答しました。")
-                return True
-            else:
-                print(f"[SAVAN] テスト失敗: {url} がステータスコード {response.status_code} を返しました。")
-                return False
-    except Exception as e:
-        print(f"[SAVAN] テスト中に例外が発生しました: {e}")
-        return False
-
-def push_to_github(timestamp, target):
-    """GitHubへ変更をpushする"""
-    print("[SAVAN] GitHubへのpushを実行します...")
-    try:
-        commit_message = f"SAVAN: Auto-generate and deploy app at {timestamp} [to-{target}]"
+        commit_message = f"SAVAN Central Engine: Deploy trigger for {os.path.basename(project_path)} at {timestamp} [to-{target}]"
+        
         subprocess.run(["git", "add", "."], check=True)
+        # 変更がない場合もコミットするため --allow-empty を使用
         subprocess.run(["git", "commit", "--allow-empty", "-m", commit_message], check=True)
         subprocess.run(["git", "push", "origin", "main"], check=True)
+        
+        print(f"[SAVAN] プロジェクト {os.path.basename(project_path)} のpushに成功しました。")
         return True
+    except FileNotFoundError:
+        print(f"ERROR: Gitリポジトリが見つかりません。パスを確認してください: {project_path}")
+        return False
     except subprocess.CalledProcessError as e:
         print(f"Git操作中にエラーが発生しました: {e}")
         return False
+    finally:
+        # --- 重要：元のディレクトリに戻る ---
+        os.chdir(original_cwd)
+        print(f"[SAVAN] 作業ディレクトリを {original_cwd} に戻しました。")
+
 
 # --- メインのワークフロー ---
-def main_workflow(target):
-    """メインのワークフロー。エラー発生時に自己解決を試みる。"""
-    print(f"===== SAVAN 自動化ワークフロー開始 (ターゲット: {target.upper()}) =====")
+def main_workflow(target, project_name):
+    """
+    指定されたプロジェクトのデプロイを起動するメインワークフロー
+    """
+    print(f"===== SAVAN 中央エンジン 自動化ワークフロー開始 =====")
+    print(f"ターゲットプラットフォーム: {target.upper()}")
+    print(f"対象プロジェクト: {project_name}")
+    
+    project_path = get_project_path(project_name)
+
+    if not os.path.isdir(project_path):
+        print(f"\n!!!!! プロジェクトフォルダが見つかりません !!!!!")
+        print(f"エラー: 指定されたプロジェクト '{project_name}' は存在しません。")
+        print(f"確認したパス: {project_path}")
+        return
+
     try:
-        # 1. 設計仕様書に基づいてアプリを生成
-        generated_file = generate_apps()
+        # このワークフローはデプロイの起動のみを担当
+        # アプリの生成やテストは別のコマンド体系で行う想定
         
-        # 2. 生成されたアプリをテスト
-        if not test_app(generated_file):
-            raise Exception("生成されたアプリのテストに失敗しました。")
-        
-        # 3. 変更をGitHubにpush（これによりActionsが起動）
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        if not push_to_github(timestamp, target):
+        if not push_to_github(project_path, timestamp, target):
             raise Exception("GitHubへのpushに失敗しました。")
 
-        print(f"[SAVAN] GitHub Actionsを通じて [{target.upper()}] へのデプロイを起動しました。")
-        print(f"===== SAVAN 自動化ワークフロー正常完了 (ターゲット: {target.upper()}) =====")
+        print(f"\n[SAVAN] GitHub Actionsを通じて [{target.upper()}] へのデプロイを起動しました。")
+        print(f"===== SAVAN 自動化ワークフロー正常完了 =====")
 
     except Exception as e:
         print(f"\n!!!!! ワークフロー実行中にエラーが発生しました !!!!!")
         print(f"エラー内容: {e}")
         
-        # ---【自己解決（学習）機能】---
         print("\n>>> SAVANの記憶（ナレッジベース）を検索しています...")
         solution = knowledge_manager.find_solution_in_kb(e)
         
         if not solution:
             print(">>> 類似した解決策は見つかりませんでした。")
-        # ---【自己解決機能ここまで】---
 
 if __name__ == "__main__":
     target = None
-    for arg in sys.argv:
+    project_name = None
+
+    # コマンドライン引数を解析
+    for arg in sys.argv[1:]:
         if arg.startswith("--target="):
             target = arg.split("=")[1]
+        elif arg.startswith("--project="):
+            project_name = arg.split("=")[1]
 
-    if target in ["linode", "gcp"]:
-        main_workflow(target)
+    if target in ["linode", "gcp"] and project_name:
+        main_workflow(target, project_name)
     else:
-        print("実行方法: python savan.py --target=linode または python savan.py --target=gcp")
+        print("\n実行方法:")
+        print("python savan.py --target=<ターゲット> --project=<プロジェクト名>")
+        print("\n例:")
+        print("python savan.py --target=linode --project=gantt_line")
+        print("\n説明:")
+        print("  --target: デプロイ先プラットフォーム (linode または gcp)")
+        print("  --project: 'projects'フォルダ内にある、対象のプロジェクト名")
 
