@@ -1,0 +1,15 @@
+# SAVANに「何を作ってほしいか」を指示するためのシンプルな設計書です。
+# 将来的には、1ClickDplyのユーザーがこのようなファイルを提供することを想定しています。
+
+appName: "HelloWorldApp"
+appType: "Streamlit"
+description: "A simple app that displays a title and a button. When the button is clicked, it shows a success message."
+
+components:
+  - type: "title"
+    text: "My First SAVAN-Generated App"
+  - type: "button"
+    label: "Click Me!"
+    action:
+      type: "show_message"
+      message: "Hello from SAVAN!"
