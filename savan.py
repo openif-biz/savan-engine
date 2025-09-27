@@ -3,10 +3,11 @@ import os
 import subprocess
 import time
 import requests
+import yaml  # YAMLファイルを読み込むために追加
 from contextlib import contextmanager
 import knowledge_manager
 
-# --- 以前からあった関数定義 ---
+# --- 関数定義 ---
 
 @contextmanager
 def run_streamlit_server(file_path, port=8501):
@@ -14,51 +15,91 @@ def run_streamlit_server(file_path, port=8501):
     command = ["streamlit", "run", file_path, "--server.port", str(port), "--server.headless", "true"]
     server_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print(f"[SAVAN] テストサーバー起動中... (PID: {server_process.pid})")
-    time.sleep(10)
+    time.sleep(10) # サーバーが完全に起動するのを待つ
     yield f"http://localhost:{port}"
     print(f"[SAVAN] テストサーバー停止中... (PID: {server_process.pid})")
     server_process.terminate()
     server_process.wait()
     print("[SAVAN] サーバー停止完了")
 
-def generate_apps(timestamp):
+def generate_apps(spec_path="app_spec.yml"):
     """
-    (この関数の中身は、以前ユキさんが持っていた実装のままにしてください)
+    設計仕様書(YAML)を読み込み、アプリケーションのソースコードを自動生成する。
     """
-    print("[SAVAN] アプリの自動生成を実行します...")
-    # (仮の実装)
+    print(f"[SAVAN] 設計仕様書 {spec_path} に基づき、アプリの自動生成を実行します...")
+    
+    try:
+        with open(spec_path, 'r', encoding='utf-8') as f:
+            spec = yaml.safe_load(f)
+    except FileNotFoundError:
+        print(f"ERROR: 設計仕様書 {spec_path} が見つかりません。savan.pyと同じ階層に配置してください。")
+        raise
+    except yaml.YAMLError as e:
+        print(f"ERROR: 設計仕様書 {spec_path} の解析中にエラーが発生しました: {e}")
+        raise
+
+    app_name = spec.get("appName", "GeneratedApp")
+    app_type = spec.get("appType", "Streamlit")
+
+    if app_type != "Streamlit":
+        raise NotImplementedError("現在、Streamlitアプリの生成のみ対応しています。")
+
+    code_lines = [
+        "import streamlit as st",
+        "",
+        f"st.set_page_config(page_title='{app_name}')",
+        ""
+    ]
+
+    for component in spec.get("components", []):
+        comp_type = component.get("type")
+        if comp_type == "title":
+            code_lines.append(f"st.title(\"{component.get('text', '')}\")")
+        elif comp_type == "button":
+            label = component.get('label', 'Button')
+            action = component.get('action', {})
+            if action.get('type') == 'show_message':
+                message = action.get('message', '')
+                code_lines.append(f"if st.button(\"{label}\"):")
+                code_lines.append(f"    st.success(\"{message}\")")
+
+    generated_code = "\n".join(code_lines)
+
     apps_dir = "generated_apps"
     os.makedirs(apps_dir, exist_ok=True)
-    app_file = os.path.join(apps_dir, f"savan_app_{timestamp}.py")
-    with open(app_file, "w", encoding="utf-8") as f:
-        f.write("import streamlit as st\nst.title('Generated App')")
-    return app_file
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    app_file_path = os.path.join(apps_dir, f"{app_name}_{timestamp}.py")
+    
+    with open(app_file_path, "w", encoding="utf-8") as f:
+        f.write(generated_code)
+    
+    print(f"[SAVAN] アプリケーションコードを {app_file_path} に生成しました。")
+    return app_file_path
 
 def test_app(file_path):
     """
-    (この関数の中身は、以前ユキさんが持っていた実装のままにしてください)
+    生成されたアプリが正常に起動し、HTTP 200を返すかテストする。
     """
     print(f"[SAVAN] アプリのテストを実行します: {file_path}")
-    # (仮の実装)
     try:
         with run_streamlit_server(file_path) as url:
-            response = requests.get(url, timeout=10)
-            return response.status_code == 200
-    except Exception:
+            response = requests.get(url, timeout=20)
+            if response.status_code == 200:
+                print(f"[SAVAN] テスト成功: {url} は正常に応答しました。")
+                return True
+            else:
+                print(f"[SAVAN] テスト失敗: {url} がステータスコード {response.status_code} を返しました。")
+                return False
+    except Exception as e:
+        print(f"[SAVAN] テスト中に例外が発生しました: {e}")
         return False
 
-def push_to_github(timestamp, target): # target を受け取る
-    """
-    GitHubへ変更をpushする
-    """
+def push_to_github(timestamp, target):
+    """GitHubへ変更をpushする"""
     print("[SAVAN] GitHubへのpushを実行します...")
     try:
-        if target == "gcp":
-            commit_message = f"SAVAN: Deploy triggered at {timestamp} [to-{target}]"
-        else:
-            commit_message = f"SAVAN: Deploy triggered at {timestamp}"
+        commit_message = f"SAVAN: Auto-generate and deploy app at {timestamp} [to-{target}]"
         subprocess.run(["git", "add", "."], check=True)
-        # ファイル変更がない場合でもコミットを作成する
         subprocess.run(["git", "commit", "--allow-empty", "-m", commit_message], check=True)
         subprocess.run(["git", "push", "origin", "main"], check=True)
         return True
@@ -66,36 +107,22 @@ def push_to_github(timestamp, target): # target を受け取る
         print(f"Git操作中にエラーが発生しました: {e}")
         return False
 
-def deploy_on_linode():
-    """
-    (この関数の中身は、以前ユキさんが持っていた実装のままにしてください)
-    """
-    print("[SAVAN] Linodeへのデプロイを実行します...")
-    # (仮の実装)
-    return True
-
 # --- メインのワークフロー ---
-def main_workflow(target): # target を受け取る
-    """
-    メインのワークフロー。エラー発生時に自己解決を試みる。
-    """
+def main_workflow(target):
+    """メインのワークフロー。エラー発生時に自己解決を試みる。"""
     print(f"===== SAVAN 自動化ワークフロー開始 (ターゲット: {target.upper()}) =====")
     try:
+        # 1. 設計仕様書に基づいてアプリを生成
+        generated_file = generate_apps()
+        
+        # 2. 生成されたアプリをテスト
+        if not test_app(generated_file):
+            raise Exception("生成されたアプリのテストに失敗しました。")
+        
+        # 3. 変更をGitHubにpush（これによりActionsが起動）
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-
-        # Gantt Lineプロジェクトではアプリの動的生成とテストは不要なためコメントアウト
-        # generated_file = generate_apps(timestamp)
-        # if not test_app(generated_file):
-        #     raise Exception("アプリのテストに失敗しました。")
-
         if not push_to_github(timestamp, target):
             raise Exception("GitHubへのpushに失敗しました。")
-
-        if target == "linode":
-            # GitHub Actions経由で実行されるため、ここでの直接実行は不要
-            # if not deploy_on_linode():
-            #     raise Exception("Linodeへのデプロイに失敗しました。")
-            pass
 
         print(f"[SAVAN] GitHub Actionsを通じて [{target.upper()}] へのデプロイを起動しました。")
         print(f"===== SAVAN 自動化ワークフロー正常完了 (ターゲット: {target.upper()}) =====")
@@ -104,7 +131,7 @@ def main_workflow(target): # target を受け取る
         print(f"\n!!!!! ワークフロー実行中にエラーが発生しました !!!!!")
         print(f"エラー内容: {e}")
         
-        # ---【ここからが自己解決（学習）機能】---
+        # ---【自己解決（学習）機能】---
         print("\n>>> SAVANの記憶（ナレッジベース）を検索しています...")
         solution = knowledge_manager.find_solution_in_kb(e)
         
@@ -114,18 +141,12 @@ def main_workflow(target): # target を受け取る
 
 if __name__ == "__main__":
     target = None
-    # コマンドライン引数から --target を解析
     for arg in sys.argv:
         if arg.startswith("--target="):
             target = arg.split("=")[1]
 
-    # target が指定されている場合のみワークフローを実行
     if target in ["linode", "gcp"]:
         main_workflow(target)
     else:
-        # 非推奨の--start引数も後方互換性のために残すが、警告を出す
-        if "--start" in sys.argv:
-            print("警告: --start は非推奨です。--target=linode を使用してください。")
-            main_workflow("linode")
-        else:
-            print("実行方法: python savan.py --target=linode または python savan.py --target=gcp")
+        print("実行方法: python savan.py --target=linode または python savan.py --target=gcp")
+

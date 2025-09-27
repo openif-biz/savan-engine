@@ -13,3 +13,4 @@ components:
     action:
       type: "show_message"
       message: "Hello from SAVAN!"
+
