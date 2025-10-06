@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.env
+.venv/
+
+# Sentence Transformers Cache
+.cache/
+
+# SAVAN Generated Files
+savan_knowledge_base.json
+savan_knowledge.index
+processed_experiences/
+savan_knowledge_base(Backup).json
+
+# OS & Editor
+.DS_Store
+*.tmp
+
+# Test files
+test_engine.py

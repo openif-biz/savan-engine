@@ -1,4 +1,5 @@
-﻿streamlit
+﻿# --- 既存のライブラリ ---
+streamlit
 pandas
 plotly
 python-dateutil
@@ -6,3 +7,9 @@ openpyxl
 streamlit-oauth
 gspread
 PyYAML
+llama-cpp-python
+requests
+
+# --- 今回の改修で追加するライブラリ ---
+sentence-transformers
+faiss-cpu
