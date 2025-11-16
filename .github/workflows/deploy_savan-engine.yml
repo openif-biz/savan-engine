@@ -1,0 +1,86 @@
+name: Deploy savan-engine to Linode (SCP)
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # 1. ファイル転送 (SCP Actionを使用)
+      - name: Copy files via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.LINODE_HOST_IP }}
+          username: ${{ secrets.LINODE_USER }}
+          key: ${{ secrets.LINODE_SSH_KEY }}
+          port: 22
+          source: "." 
+          target: "/var/www/savan-engine"
+          rm: true # 転送前にターゲットフォルダをクリアする
+
+      # 2. リモートコマンド実行 (SSH Action)
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.LINODE_HOST_IP }}
+          username: ${{ secrets.LINODE_USER }}
+          key: ${{ secrets.LINODE_SSH_KEY }}
+          port: 22
+          script: |
+            echo "🚀 SAVAN Auto-Deploy Initiated for savan-engine on port 8801..."
+            
+            TARGET_DIR="/var/www/savan-engine"
+            cd $TARGET_DIR
+            
+            echo "📂 Current Directory: $(pwd)"
+            ls -la
+            
+            if [ -f requirements.txt ]; then 
+                echo "📦 Installing dependencies..."
+                pip install -r requirements.txt
+            fi
+            
+            # --- App File Detection Logic ---
+            APP_FILE=""
+            if [ "savan-engine" == "savan-engine" ]; then
+                # SAVAN Engineの場合はUIを起動する
+                APP_FILE="savan_ui.py"
+            else
+                # 通常のプロジェクトの場合
+                APP_FILE="src/savan-engine.py"
+                if [ ! -f "$APP_FILE" ]; then
+                    if [ -f "savan-engine.py" ]; then APP_FILE="savan-engine.py";
+                    elif [ -f "MatchupAppCOST.py" ]; then APP_FILE="MatchupAppCOST.py";
+                    elif [ -f "main.py" ]; then APP_FILE="main.py";
+                    elif [ -f "app.py" ]; then APP_FILE="app.py"; 
+                    else APP_FILE=$(find . -name "*.py" | head -n 1); fi
+                fi
+            fi
+            
+            echo "🎯 Detected App File: $APP_FILE"
+            
+            # --- Firewall Configuration (Auto Unlock) ---
+            if command -v ufw > /dev/null; then
+                echo "🔓 Opening firewall port 8801..."
+                ufw allow 8801
+            fi
+            # ------------------------------------------
+            
+            pkill -f "streamlit run $APP_FILE" || true
+            
+            # ログファイルへの書き込み権限も考慮して実行
+            nohup streamlit run $APP_FILE --server.port 8801 --server.address 0.0.0.0 > app.log 2>&1 &
+            
+            echo "✅ SAVAN Deployment Completed on port 8801."
+            echo "🌍 App URL: http://${{ secrets.LINODE_HOST_IP }}:8801"
