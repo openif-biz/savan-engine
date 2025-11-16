@@ -1,0 +1,42 @@
+{
+  "experience_id": "20250928_ganttline_aggregation_logic_fix",
+  "project_name": "Gantt Line",
+  "user_request": "Gantt Lineの月次分析機能において、選択した契約月で案件を正しく絞り込み、正確な売上集計を行いたい。",
+  "symptom": {
+    "error_type": "Logical Error in Data Aggregation",
+    "error_message": "月次分析で契約月や担当者を変更しても、サマリーの数値が不正確であったり、タイムラインに関係のない月の案件が表示されたりする。ユーザーによる手計算との間に、億円単位での乖離が発生した。",
+    "keywords": [
+      "集計",
+      "ロジック",
+      "pivot_table",
+      "フィルタリング",
+      "データ不整合",
+      "重複カウント",
+      "キャッシュ"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "データ読み込み時のクレンジング（カンマ除去など）が不十分なため、数値として正しく認識されていない。",
+      "action_summary": "金額列からカンマや円マークを除去するデータクレンジング処理を強化したが、集計値が不正確な問題は解決しなかった。",
+      "result": "失敗"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "データを縦持ちに変換してから集計する過程で、一つの案件の金額を複数回（契約、工事、入金の分）カウントしてしまっている。",
+      "action_summary": "ユーザーから『以前サーバーで動いていたpivot_tableを使うロジックの方が正確ではないか？』という重要な指摘を受けた。その指摘に基づき、集計前にpivot_tableで案件ごとのユニークな日付リストを作成する方式に切り替えた。",
+      "result": "部分的成功（集計の重複は減ったが、フィルタリングの不具合は残存）"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "フィルタリングのロジックが、『契約月以降』のデータを除外するだけで、『契約月以前』のデータを除外しきれていない。",
+      "action_summary": "ユーザーの奥様から『Geminiは真面目に契約月以前の案件を表示しているだけ』という、問題の核心を突く洞察を得た。この助言に基づき、フィルタリングロジックを全面的に再設計。①まずエリア・担当者で絞り、②次にその中から契約日で案件リストを厳密に確定し、③最後にその案件リストで全データを再抽出するという、多段階の分離されたフィルタリング処理を実装した。",
+      "result": "大成功。これにより、全ての集計・表示不具合が解消された。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "複雑なデータ集計における論理エラーは、単一のコード行ではなく、処理全体の『順序』に起因することが多い。今回の根本原因は、①まず案件ごとに金額をユニーク化（pivot_table or drop_duplicates）し、②次にそのユニークなリストに対して期間フィルターをかけ、③最後にその結果を使って表示用の全データを抽出する、という正しい処理順序が確立されていなかったことにある。ユーザーやその家族という第三者の客観的な視点こそが、開発者（AIを含む）が見落としがちな論理の穴を発見する鍵となった。",
+    "successful_code_snippet": "# 最終的に確立された、多段階分離フィルタリングのロジック\ndef monthly_callback():\n    # ステップ1: まず、UIで選択されたエリアと担当者でデータを絞る\n    base_df = st.session_state.area_filtered_df\n    rep_filtered_df = base_df[base_df['担当者名'] == selected_rep] if selected_rep != '（エリア全員）' else base_df\n\n    # ステップ2: 絞られたデータの中から『契約』タスクだけを抽出し、\n    # さらに『契約月』でフィルタリングして、正しい案件名のリストを確定させる\n    contracts_only_df = rep_filtered_df[rep_filtered_df['タスク'] == '契約']\n    contracts_in_month_df = contracts_only_df[ (contracts_only_df['日付'] >= start_of_month) & (contracts_only_df['日付'] <= end_of_month) ]\n    target_project_names = contracts_in_month_df['案件名'].unique()\n\n    # ステップ3: 確定した案件名リストを使い、ステップ1のデータから最終的な表示データを抽出する\n    display_df_monthly = rep_filtered_df[rep_filtered_df['案件名'].isin(target_project_names)]\n\n    # ... (このdisplay_df_monthlyを使ってサマリー計算とグラフ描画を行う)"
+  }
+}

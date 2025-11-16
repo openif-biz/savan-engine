@@ -1,0 +1,44 @@
+{
+  "experience_id": "20250927_google_colab_file_sync_issue",
+  "project_name": "IINA PoC (Google Colab Environment)",
+  "user_request": "ローカルPCにあるファイル（requests.csv, google-credential.zip）をGoogle Colabにアップロードし、プログラムから利用したい",
+  "symptom": {
+    "error_type": "File Not Found / Environment Synchronization Error",
+    "error_message": "Colabの左側のファイルパネル（GUI）にはアップロードしたファイルが見えているのに、!lsコマンド（CUI）では表示されず、!unzipコマンドを実行すると 'unzip: cannot find or open ...' というエラーが発生する。",
+    "keywords": [
+      "Google Colab",
+      "アップロード",
+      "ファイルが見つからない",
+      "ls",
+      "unzip",
+      "同期",
+      "GUI",
+      "CUI",
+      "File Not Found"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "ファイルのアップロードがまだ完了していない。ユーザーがアップロード作業を完了すれば解決する。",
+      "action_summary": "ユーザーに「ColabはPCとは別のコンピュータである」と説明し、ファイルのアップロードを再度促した。ユーザーは指示通りアップロードを完了した。",
+      "result": "失敗（アップロード後も問題が継続）"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "GUI（ファイルパネル）とCUI（コマンドライン）の間で、情報の同期に遅延が発生しているだけである。ファイルは実際には存在するため、コマンドをそのまま実行すれば成功するはずだ。",
+      "action_summary": "ユーザーに「同期が遅れているだけなので、!lsの結果は無視して!unzipコマンドを実行してください」と指示した。",
+      "result": "失敗（'cannot find or open'エラーが再発し、仮説が間違っていたことが証明された）"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "ファイルのアップロードが不完全または破損した状態で、システムが不安定になっている。この状態をリセットするには、実行環境そのものを再起動するのが最も確実である。",
+      "action_summary": "ユーザーにColabの「ランタイムを再起動」するよう指示。環境を完全に初期化し、再度ファイルのアップロードからやり直してもらった。",
+      "result": "成功（クリーンな環境で再アップロードした結果、!lsコマンドでファイルが正しく認識され、!unzipも成功した）"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "プログラムのエラーは、コードそのものだけでなく、それが動作する『環境』の複雑さに起因することが多々ある。今回の根本原因は、Google Colabというリモート環境において、ファイルのアップロードが中途半端な状態（GUIでは見えるがCUIからは認識不能）でスタックし、環境全体が不安定になったことにある。個別のコマンドを修正するのではなく、環境全体をリセット（ランタイムの再起動）し、クリーンな状態で手順を再実行したことが、最終的な解決に繋がった。",
+    "successful_code_snippet": "# 1. 状況を確認するための基本コマンド\n!ls\n\n# 2. 問題を解決した最終的なアクション（コマンドではなく操作）\n# Google Colabのメニューから「ランタイム」 -> 「ランタイムを再起動」を選択する。\n\n# 3. 環境リセット後に、改めて正しい手順を実行する\n# (手順1) ファイルをアップロード\n# (手順2) !ls でファイルが存在することを「コマンドラインで」確認\n# (手順3) !unzip google-credential.zip を実行"
+  }
+}

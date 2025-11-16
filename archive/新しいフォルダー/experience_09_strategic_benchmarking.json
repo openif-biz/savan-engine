@@ -1,0 +1,45 @@
+{
+  "experience_id": "20250921_full_stack_poc_development_saga",
+  "project_name": "IINA & SAVAN PoC",
+  "user_request": "ビジネスパーソンがAIと共に、アイデアをPoCとしてWeb上に公開し、事業化を目指す過程で、最適な技術スタックをベンチマークを通じて選定したい",
+  "symptom": {
+    "error_type": "Full-Stack Development Challenges",
+    "error_message": "クラウドの権限エラー、CI/CDの認証失敗、本番データとの不整合など、PoC開発で発生しうる問題に直面し、どの技術基盤がPoCに最適か判断できない。",
+    "keywords": [
+      "GCP",
+      "Linode",
+      "CI/CD",
+      "GitHub Actions",
+      "Docker",
+      "SSH",
+      "IAM",
+      "ベンチマーク",
+      "技術選定",
+      "比較検討"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "【失敗モデルの検証】Google Cloud Platform(GCP)が、将来的なスケーラビリティを考慮するとPoC段階から最適である。",
+      "action_summary": "GCPのCloud Runへのデプロイを試みたが、IAM、組織ポリシー、物理メモリ不足といった『真実の権限設定』の壁に阻まれた。PoC段階で求められる開発スピードとコストの観点からは不適合であると結論付けた。",
+      "result": "失敗（この経験を『失敗モデル』として記録）"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "【成功モデルの検証】GCPでの失敗モデルを分析し、PoC段階では認証がシンプルで、コストが低いIaaS(Linode)の方が最適である。",
+      "action_summary": "GCPでの経験を元に、LinodeサーバーとGitHub Actionsを組み合わせたCI/CDパイプラインを構築。SSH認証の課題はあったものの、最終的に『サーバーで鍵を生成し、秘密鍵をGitHub Secretsに手動で登録する』という確実な方法で認証を突破し、自動デプロイを完成させた。",
+      "result": "成功（この経験を『成功モデル』として確立）"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "本番のExcelデータは、列名の揺らぎなど予測不能なノイズを含んでいる。",
+      "action_summary": "堅牢なデータ変換パイプラインを実装し、本番データへの対応に成功した。",
+      "result": "成功"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "AI SaaSのPoC開発における真の課題は、単一の技術的エラーではなく、①ビジネス要件（コスト、スピード）と技術選定のマッチング、②クラウド環境の複雑な権限設定、③本番データの予測不能なノイズ、④ユーザーの直感的理解を助けるUI/UX、という4つの異なるレイヤーの問題が複合的に絡み合うことにある。特に、GCPでの『失敗モデル』とLinodeでの『成功モデル』を明確にベンチマークし、両者を対比することで、PoC段階における最適な技術選定（コスト、スピード、認証の複雑性）の基準が明確になった。このように成功と失敗のモデルを対比・分析すること自体が、複雑な問題解決における有効な対策である。",
+    "successful_code_snippet": "# 1. 成功モデル（Linode）におけるCI/CDの核心部\n- name: Deploy to Linode via SSH\n  uses: appleboy/ssh-action@master\n  with:\n    host: ${{ secrets.LINODE_HOST }}\n    username: root\n    key: ${{ secrets.LINODE_SSH_KEY }}\n    script: |\n      set -e\n      cd ~/iina-poc\n      git reset --hard origin/main\n      sudo docker-compose down || true\n      sudo docker-compose build\n      sudo docker-compose up -d\n\n# 2. 失敗モデル（GCP）から得られた教訓（抜粋）\n# gcloudコマンドは『組織 > プロジェクト』の階層構造を理解して実行する必要がある\ngcloud projects get-ancestors [PROJECT_ID]\ngcloud resource-manager org-policies set-policy policy.yaml --organization=[ORGANIZATION_ID]"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "experience_id": "20250928_gcp_auth_and_development_philosophy",
+  "project_name": "SAVAN Meta-Development",
+  "user_request": "AI開発における正しいワークフローと、Google Cloud Platform(GCP)の『真実の権限設定』について学ぶこと。特に、一人で問題を抱え込まず、多様な意見（他のAIを含む）を取り入れる開発スタイルの重要性を理解する。",
+  "symptom": {
+    "error_type": "Development Workflow Error & Cloud Authentication Failure",
+    "error_message": "Cloud Shellで司令塔スクリプト(savan.py)を実行しようとして 'No such file or directory' エラーが発生。その後、ローカル環境とリモートリポジトリ(GitHub)の同期が取れなくなり、'git pull'も'git push'も失敗する混乱状態に陥った。",
+    "keywords": [
+      "Cloud Shell",
+      "ローカル環境",
+      "git",
+      "PERMISSION_DENIED",
+      "No such file or directory",
+      "共同開発",
+      "引き継ぎ",
+      "サービスアカウント",
+      "actAs"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "司令塔スクリプト(savan.py)は、クラウドを操作するためのものだからCloud Shellで実行すべきである。",
+      "action_summary": "Cloud Shell上で 'python savan.py --target=gcp' を実行した。",
+      "result": "失敗。'No such file or directory' エラーが発生。これにより、『どこでコマンドを実行すべきか』という、開発ワークフローの根本的な誤解が露呈した。"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "ローカル環境とGitHubリポジトリが同期していないため、エラーが発生している。",
+      "action_summary": "ローカルで 'git pull' を試みたが、ローカルの変更と競合して失敗。次に 'git push' を試みたが、リモートが先行しているため拒否された。これにより、手動での同期がいかに困難であるかが示された。",
+      "result": "失敗（問題の複雑化）"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "この混乱を解決するには、信頼できる唯一の情報源であるGitHubリポジトリの状態を『正』とし、ローカル環境を強制的に同期させる必要がある。",
+      "action_summary": "ローカルPCから 'git reset --hard origin/main' を実行し、ローカルの変更を破棄してGitHubの状態に完全に一致させた。",
+      "result": "成功。これにより、ローカルとリモートの食い違いという問題が解消され、開発の土台が安定した。"
+    },
+    {
+      "attempt_id": 4,
+      "hypothesis": "安定したローカル環境こそが、全ての操作の起点（司令塔）である。",
+      "action_summary": "同期が完了したローカルPCの正しいディレクトリから 'python savan.py --target=gcp' を実行。これによりGitHub Actionsが正常に起動し、最終的にデプロイに成功した。",
+      "result": "大成功。開発ワークフローの正しい理解と実践が、複雑なクラウド操作を可能にすることが証明された。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "GCPのような複雑なシステムにおける認証失敗の多くは、ユーザーの単純な不注意や誤解から始まる。しかし、その解決には、①ローカル（開発・指示）とクラウド（実行）の役割分担の正しい理解、②Gitによる厳格なバージョン管理、③そして最も重要なこととして、一人で問題を抱え込まず、外部の客観的な視点（他のAIの助言など）を取り入れ、体系的な引き継ぎ資料を作成しながら進めるという、現代的な『協調開発姿勢』が不可欠だった。",
+    "successful_code_snippet": "# 1. 開発ワークフローの基本規律：正しい場所で、正しいコマンドを実行する\n# PowerShell (ローカルPC) で実行\ncd C:\\Users\\Owner\\local_savan\\engines\n\n# 2. 混乱した際の最終手段：信頼できる情報源(GitHub)にローカルを強制的に同期させる\n# PowerShell (ローカルPC) で実行\ngit reset --hard origin/main\n\n# 3. SAVANの司令塔としての正しい運用\n# PowerShell (ローカルPC) で実行\npython savan.py --target=gcp\n\n# 4. SAVANが学ぶべきGCPの『真実』(行動規範への追記)\n# - GCPの権限は『組織 > プロジェクト > サービス』の階層構造を持つ。\n# - サービスアカウント間の『代理実行権限(iam.serviceAccounts.actAs)』は、GUIからは見えない最も深い階層の権限である。\n# - これらの真実は、Cloud Shellからコマンドでしか設定できない場合がある。この知識こそが競争優位の源泉となる。"
+  }
+}

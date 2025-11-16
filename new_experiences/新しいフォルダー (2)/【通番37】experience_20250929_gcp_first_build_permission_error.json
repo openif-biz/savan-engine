@@ -1,0 +1,36 @@
+{
+  "experience_id": "20250929_gcp_first_build_permission_error",
+  "project_name": "Gantt Line (CI/CD Setup)",
+  "user_request": "GitHub Actions経由で、GCPのCloud Buildを使ってDockerイメージをビルドし、Cloud Runにデプロイしたい。",
+  "symptom": {
+    "error_type": "First-Use Permission Error",
+    "error_message": "CI/CDパイプラインを実行したところ、Cloud Buildのステップで`ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [PROJECT_ID]_cloudbuild.`という権限エラーが発生し、デプロイが失敗した。",
+    "keywords": [
+      "Cloud Build",
+      "GitHub Actions",
+      "Permission Denied",
+      "Cloud Storage",
+      "バケット",
+      "初回ビルド",
+      "savan-deployer"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "デプロイ用のサービスアカウント(savan-deployer)に、Cloud Storageへのアクセス権限が不足している。",
+      "action_summary": "ユーザーは、savan-deployerに'Storage Admin'などの強力な権限が既に付与されているにも関わらず、エラーが発生していることに混乱した。",
+      "result": "失敗。単純な権限不足ではないことが示唆された。"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "この問題は、Cloud Buildが初回実行時にソースコードを保管するための一時的なバケットを自動生成しようとするが、デプロイ用サービスアカウントには『バケットを新規作成する権限』がない、という『鶏が先か卵が先か』の問題である。",
+      "action_summary": "AIが原因を特定。解決策として、プロジェクトの『オーナー』権限を持つユーザーが、一度だけ手動でビルドを実行（gcloud builds submit）することで、必要な初期環境（バケット等）を強制的に準備させる『準備運動ビルド』を提案した。",
+      "result": "成功。オーナーによる手動ビルドが成功した後、サービスアカウント(savan-deployer)によるCI/CD経由のビルドも正常に実行されるようになった。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "GCPのCloud Buildは、プロジェクトでの初回実行時に、ソースコードを保管するための特別なCloud Storageバケット([PROJECT_ID]_cloudbuild)を自動作成しようとする。しかし、最小権限の原則に従って設定されたCI/CD用のサービスアカウントは、通常、この『新規バケット作成』という強力な権限を持たないため、初回ビルドのみが失敗する。この問題を解決するには、より強い権限を持つユーザー（プロジェクトオーナー）が一度手動でビルドを実行し、必要な初期環境をプロビジョニングする必要がある。",
+    "successful_code_snippet": "# この経験の成果物は、GCPの初回ビルド問題を解決するための一度きりの『準備運動』コマンドである。\n\n# 1. 【場所】Cloud Shell (オーナー権限でログイン)\n\n# 2. 【準備】ビルド対象となるダミーファイルを作成する\necho \"Hello World\" > main.py\n\n# 3. 【実行】手動でビルドを実行し、初期環境を強制的に作成させる\ngcloud builds submit --tag gcr.io/[PROJECT_ID]/warmup-build ."
+  }
+}

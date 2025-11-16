@@ -1,0 +1,41 @@
+{
+  "experience_id": "20250927_savan_engine_separation_and_centralization",
+  "project_name": "SAVAN Architecture",
+  "user_request": "SAVANが管理するアプリケーションが数十個にスケールした際に、管理が破綻するリスクを恒久的に回避するための、堅牢なファイル管理アーキテクチャを確立したい。",
+  "symptom": {
+    "error_type": "Architectural Scalability Issue",
+    "error_message": "PoC開発初期段階において、SAVANのエンジン部分と、それが生成するGanttLineのようなアプリケーションが、同一のフォルダ階層に混在していた。このままでは、どれがエンジンでどれが製品か判別不能になり、管理が破綻するリスクがあった。",
+    "keywords": [
+      "アーキテクチャ",
+      "ファイル構成",
+      "スケーラビリティ",
+      "関心の分離",
+      "エンジン",
+      "プロジェクト"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "SAVANのエンジンと生成物を、単一のGitリポジトリ内でフォルダ分けすれば管理できる。",
+      "action_summary": "当初は単一のリポジトリ(Linode-ganttLine)内にSAVANのコアスクリプト(savan.py, knowledge_manager.py)と生成物(gantt_line.py)が同居していた。しかし、プロジェクトが増えるたびにSAVAN本体をコピーする必要があり、非効率で同期が困難になると判断された。",
+      "result": "失敗（スケーラビリティに問題あり）"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "PCの物理的なフォルダレベルで、『工場（エンジン）』と『製品（プロジェクト）』の役割を完全に分離するアーキテクチャを採用すれば、管理破綻のリスクを恒久的に回避できる。",
+      "action_summary": "ユーザーの強い意志決定に基づき、'C:\\Users\\Owner\\local_savan' をワークスペースのルートとし、その配下に 'engines' フォルダと 'projects' フォルダを設置。SAVANの心臓部を 'engines' に集約し、GanttLineのような生成物は全て 'projects' フォルダ配下で管理する構成へと移行した。",
+      "result": "成功"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "分離されたアーキテクチャを機能させるには、中央エンジン(engines/savan.py)が、各プロジェクトフォルダに『出張』してGit操作などを行い、完了後に必ず『帰還』する遠隔操作の仕組みが必要である。",
+      "action_summary": "savan.pyに '--project' という引数を追加。この引数で指定されたプロジェクトのパスを動的に解決し、'os.chdir()' を使って一時的に作業ディレクトリを移動してGitコマンドを実行し、'finally' 節で必ず元のディレクトリに戻る、という堅牢な遠隔操作ロジックを実装した。",
+      "result": "大成功。これにより、単一のインターフェースから複数のプロジェクトを安全に統制する、中央集権的な管理体制が確立された。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "単一のプロジェクトを開発するPoC段階と、複数のプロジェクトを管理する生産段階では、求められるアーキテクチャが根本的に異なる。初期の『一体型』アーキテクチャは、スケーラビリティと安全性の観点から限界があった。",
+    "successful_code_snippet": "# 1. 最終的に確立された、分離・中央集権型の推奨ディレクトリ構造\n\"\"\"\n/local_savan/\n│\n├── 📂 engines/  <- ここは「工場」。SAVANの心臓部だけを置く聖域\n│   ├── savan.py (中央エンジン本体)\n│   └── ... (knowledge_manager.pyなど)\n│\n└── 📂 projects/  <- ここは「製品の展示場」。SAVANが作ったアプリだけを置く\n    ├── 📂 gantt_line/\n    └── 📂 (他のプロジェクト...)\n\"\"\"\n\n# 2. 中央エンジンによる遠隔操作を実現するsavan.pyの核心ロジック\ndef main_workflow(target, project_name):\n    # プロジェクトのパスを動的に取得\n    project_path = get_project_path(project_name)\n\n    # ... (エラーチェック) ...\n\n    # push_to_github関数内で、作業ディレクトリを一時的に変更する\n    os.chdir(project_path)\n    try:\n        # ... git add, commit, push を実行 ...\n    finally:\n        # 必ず元のディレクトリに戻る\n        os.chdir(original_cwd)"
+  }
+}

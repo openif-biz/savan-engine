@@ -1,0 +1,52 @@
+{
+  "experience_id": "20250927_cicd_pipeline_struggle_and_triumph",
+  "project_name": "IINA PoC",
+  "user_request": "ローカルで開発したAIアプリケーションを外部サーバー(Linode)にデプロイし、GitHubへのpushをトリガーに自動で更新されるCI/CDパイプラインを構築したい",
+  "symptom": {
+    "error_type": "CI/CD Pipeline Failure",
+    "error_message": "GitHub Actionsのワークフローが、LinodeサーバーへのSSH接続ステップで繰り返し失敗する。ログには 'ssh: handshake failed: ssh: unable to authenticate, attempted methods [none publickey], no supported methods remain' と表示される。",
+    "keywords": [
+      "GitHub Actions",
+      "CI/CD",
+      "Linode",
+      "デプロイ",
+      "ssh",
+      "handshake failed",
+      "authentication",
+      "appleboy/ssh-action",
+      "秘密鍵",
+      "公開鍵",
+      "secrets"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "Cloud Shell上でのGitのユーザー情報や認証情報が不足しているため、GitHubへのpush自体が失敗している。",
+      "action_summary": "Cloud Shell上でgit config user.name/emailを設定し、Personal Access Token (PAT) を使ったpushを試みたが、ターミナルの操作が複雑でループが発生し、根本的なデプロイ問題の解決には至らなかった。",
+      "result": "失敗（問題のレイヤーが異なっていた）"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "GitHub Actionsのワークフローファイル(.yml)のスクリプトに誤りがあるため、デプロイコマンドが正しく実行されていない。",
+      "action_summary": "GitHubのWebブラウザ上で直接deploy-to-linode.ymlを編集し、ディレクトリパスの修正やdocker-composeコマンドの堅牢化を行った。ワークフローのロジックは改善されたが、SSH接続エラーは解決しなかった。",
+      "result": "部分的成功（ワークフローの可読性は向上したが、本質的なエラーは残存）"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "GitHub Actionsの実行環境からLinodeサーバーへのSSH接続に必要な秘密鍵が、GitHub Secretsに正しく登録されていない。",
+      "action_summary": "Linodeサーバー上でgh secret setコマンドを実行して秘密鍵を登録しようとしたが、これは実行場所の誤りであり、正しくSecretsに登録できなかった。",
+      "result": "失敗（ツールの使用方法を誤解）"
+    },
+    {
+      "attempt_id": 4,
+      "hypothesis": "SSH接続エラーの根本原因は、GitHub Actionsが使用するSSH鍵ペアそのもの、またはその登録方法にある。確実な方法で鍵ペアを再生成し、手動でSecretsに登録し直す必要がある。",
+      "action_summary": "1. Linodeサーバーで新しいSSH鍵ペアを専用に作成。 2. 公開鍵をサーバーのauthorized_keysに追記。 3. 秘密鍵の中身をWebブラウザ経由でGitHubリポジトリのSecrets (LINODE_SSH_KEY) に手動でコピー＆ペーストした。",
+      "result": "大成功（CI/CDパイプラインが完全に開通し、自動デプロイが実現した）"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "CI/CDにおけるGitHub Actionsと外部サーバー間の接続失敗の根本原因は、単なるコードの不備ではなく、両者を繋ぐ『認証』の不備にある。具体的には、GitHub Actionsの実行環境がサーバーにログインするための『SSH秘密鍵』が、リポジトリのSecretsに正しく、かつ完全に登録されていなかったことが全ての問題の根源だった。コマンドラインツール(gh)の誤用や環境の不理解により登録に失敗し続けたが、最終的にWeb UIから手動で秘密鍵を正確に登録し直したことで、認証が通りパイプラインが開通した。",
+    "successful_code_snippet": "# 1. LinodeサーバーでGitHub Actions専用のSSH鍵ペアを生成・登録するコマンド\nssh-keygen -t rsa -b 4096 -C \"github-actions-for-iina\" -f ~/.ssh/id_rsa_github_actions\ncat ~/.ssh/id_rsa_github_actions.pub >> ~/.ssh/authorized_keys\n\n# 2. 秘密鍵の中身をコピーして、GitHubのWeb UIからSecrets (LINODE_SSH_KEY) に貼り付ける\ncat ~/.ssh/id_rsa_github_actions\n\n# 3. 上記の鍵登録を前提とした、最終的に成功したワークフローファイル(.yml)の核心部分\n- name: Deploy to Linode via SSH\n  uses: appleboy/ssh-action@master\n  with:\n    host: ${{ secrets.LINODE_HOST }}\n    username: root\n    key: ${{ secrets.LINODE_SSH_KEY }}\n    script: |\n      set -e\n      cd ~/iina-poc\n      git reset --hard origin/main\n      sudo docker-compose down || true\n      sudo docker-compose build\n      sudo docker-compose up -d"
+  }
+}

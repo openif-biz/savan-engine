@@ -1,0 +1,36 @@
+{
+  "experience_id": "20250928_savan_learning_architecture_fix",
+  "project_name": "SAVAN",
+  "user_request": "SAVANの自己学習アーキテクチャを、単一の手動学習方式から、複数の未学習ファイルを自動的に処理するバッチ学習方式へと進化させたい。",
+  "symptom": {
+    "error_type": "Architectural Flaw in Learning System",
+    "error_message": "新しい経験ファイルをnew_experiences/フォルダに配置し、python learn.pyを実行しても、学習後にファイルがarchive/フォルダへ移動されず、学習プロセスが自動化されていない。毎回learn.pyのコード自体を書き換える必要があり、スケールしない。",
+    "keywords": [
+      "学習",
+      "アーキテクチャ",
+      "learn.py",
+      "自動化",
+      "バッチ処理",
+      "new_experiences",
+      "archive"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "learn.pyスクリプトに、単一の経験(new_experience)がハードコードされている旧バージョンが使用されているため、フォルダからの自動読み込み機能が動作していない。",
+      "action_summary": "引継ぎ資料と現状のlearn.pyを比較分析。現在のスクリプトが、単一の経験オブジェクトをknowledge_manager.save_experienceに直接渡すだけの旧式のものであることを特定した。",
+      "result": "成功（根本原因の特定）"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "learn.pyを、new_experiences/フォルダを監視し、内部の全JSONファイルを自動で読み込み、学習後にarchive/フォルダへ移動させる機能を持つ「新バージョン（バッチ学習システム版）」に置き換えれば、学習プロセス全体が自動化される。",
+      "action_summary": "新バージョンのlearn.pyの完全なコードを提示し、既存のファイルを全文上書きするよう指示した。",
+      "result": "大成功（アーキテクチャの刷新）"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "SAVANの初期の学習システムは、単一の経験を手動でコードに埋め込んで教える「家庭教師」方式だった。これはスケールせず、手動でのファイル管理ミスを誘発する脆弱なアーキテクチャだった。",
+    "successful_code_snippet": "# 新しいlearn.py（バッチ学習システム版）の核心部分\n\nimport os\nimport json\nimport shutil\nimport knowledge_manager\n\nNEW_EXPERIENCES_DIR = 'new_experiences'\nARCHIVE_DIR = 'archive'\n\ndef learn_from_new_experiences():\n    # new_experiencesフォルダ内の全JSONファイルを取得\n    experience_files = [f for f in os.listdir(NEW_EXPERIENCES_DIR) if f.endswith('.json')]\n    \n    for filename in experience_files:\n        source_path = os.path.join(NEW_EXPERIENCES_DIR, filename)\n        \n        # 1. 経験ファイルを読み込む\n        with open(source_path, 'r', encoding='utf-8') as f:\n            experience_data = json.load(f)\n\n        # 2. 知識として記憶させる\n        knowledge_manager.save_experience(experience_data)\n        \n        # 3. 学習が成功したら、archiveフォルダに移動する\n        destination_path = os.path.join(ARCHIVE_DIR, filename)\n        shutil.move(source_path, destination_path)"
+  }
+}

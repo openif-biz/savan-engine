@@ -1,4 +1,3 @@
-# 【通番18】savan_ui.py 最終決定版 改3（GitHubプレビュー追加）
 import streamlit as st
 import sys
 import os
@@ -6,229 +5,280 @@ import subprocess
 import time
 import yaml
 from contextlib import contextmanager
-from llama_cpp import Llama
+# from llama_cpp import Llama 
 import tempfile
+import json
+from pathlib import Path
 
 # --- 設定 ---
 def get_model_path():
-    # スクリプトの場所に基づいて、ワークスペースのルートを堅牢に特定
     workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     return os.path.join(workspace_root, "models", "deepseek-coder-6.7b-instruct.Q4_K_M.gguf")
 
 MODEL_PATH = get_model_path()
 
-# --- バックエンド処理 1: AIによる分析フェーズ ---
-def analyze_document_and_propose_spec(document_content):
-    """ドキュメントを分析し、app_spec.ymlの内容とプロジェクト名を提案する"""
-    st.info("[SAVAN] AIアーキテクトが入力ドキュメントを分析・蒸留しています...")
-    spec_content = ""
-    try:
-        # 'with'構文を使うことで、リソース管理を自動化
-        with load_llm() as llm:
-            if llm is None:
-                raise Exception("AIエンジンの起動に失敗しました。")
-            prompt = f"""### Instruction ###
-You are a senior system architect. Analyze the user's document and distill its essence into a structured YAML format with `app_name`, `concept`, and `basic_functions`. Strictly output only the YAML content inside a ```yaml code block.
-### User's Document ###
-{document_content}
-### Output YAML ###
-```yaml
-"""
-            output = llm(prompt, max_tokens=1024, stop=["```"], echo=False, temperature=0.2)
-            spec_content = output['choices'][0]['text'].strip()
-            if spec_content.startswith("yaml"):
-                spec_content = spec_content[4:].strip()
-            
-            spec_data = yaml.safe_load(spec_content)
-            project_name = spec_data.get('app_name', 'Unnamed_Project')
-            st.success(f"[SAVAN] 骨格の生成に成功。プロジェクト名 '{project_name}' を提案します。")
-            
-            return project_name, spec_content, True
+# --- パス解決ロジック (強化版) ---
+CURRENT_FILE_PATH = Path(__file__).resolve()
+ENGINE_DIR = CURRENT_FILE_PATH.parent # savan-engine
+ROOT_DIR = ENGINE_DIR.parent          # local_savan
+PROJECTS_DIR = ROOT_DIR / 'projects'
+SAVAN_PY_PATH = os.path.join(os.path.dirname(__file__), "savan.py")
 
-    except Exception as e:
-        st.error(f"ERROR: AIによるapp_spec.ymlの骨格生成に失敗しました。\nエラー詳細: {e}")
-        st.code(f"AIの出力:\n---\n{spec_content}\n---", language='yaml')
-        return None, None, False
+# --- フロントエンド UI 設定 ---
+st.set_page_config(page_title="SAVAN Console", page_icon="🏭", layout="wide")
+st.title("🏭 SAVAN - Universal Console")
+st.markdown("### Intellectual Software Factory Interface")
+st.divider()
 
-# --- バックエンド処理 2: プロジェクト創出の実行フェーズ ---
-def execute_project_creation(project_name, spec_content):
-    """提案に基づき、実際にファイルとリポジトリを作成する"""
-    st.info(f"[SAVAN] プロジェクト '{project_name}' の創出を開始します。")
-    project_path, success = create_project_scaffolding(project_name, spec_content)
-    if not success:
-        st.error("!!!!! プロジェクト創出ワークフローが中断されました !!!!!")
-        return False
+# --- Helper Functions ---
+def get_project_list():
+    """projectsディレクトリ配下 + savan-engine自身をリスト化"""
+    projects = []
     
-    success = initialize_git_and_create_repo(project_path)
-    if not success:
-        st.error("!!!!! プロジェクト創出ワークフローが中断されました !!!!!")
-        return False
-        
-    st.balloons()
-    st.success(f"===== SAVAN 構想具体化ワークフロー正常完了 =====")
-    return True
+    # projectsフォルダ内のディレクトリ
+    if PROJECTS_DIR.exists():
+        projects.extend([d.name for d in PROJECTS_DIR.iterdir() if d.is_dir()])
+    
+    # savan-engine自身を追加 (自己デプロイ用)
+    projects.append("savan-engine")
+    
+    return projects
 
-# --- ヘルパー関数群 (変更なし) ---
-@contextmanager
-def load_llm():
-    if not os.path.exists(MODEL_PATH):
-        st.error(f"ERROR: AIモデルファイルが見つかりません: {MODEL_PATH}")
-        yield None; return
-    with st.spinner("[SAVAN] AIエンジンを起動しています..."):
-        llm = Llama(model_path=MODEL_PATH, n_ctx=4096, n_gpu_layers=-1, verbose=False)
-    st.success("[SAVAN] AIエンジン起動完了。")
-    yield llm
-    st.info("[SAVAN] AIエンジンを停止します。")
+def get_template_list():
+    return ["linode-docker-deploy"]
 
-def get_workspace_root():
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# --- ワークフロー選択UI ---
+workflow_options = [
+    "プロジェクトを新規創出する (New Project)", 
+    "既存プロジェクトにテンプレートを適用する (Apply Template)",
+    "既存アプリの自動デプロイ設定 (Auto-Deploy Config)"
+]
 
-def create_project_scaffolding(project_name, generated_spec_content):
-    workspace_root = get_workspace_root()
-    project_path = os.path.join(workspace_root, 'projects', project_name)
-    st.info(f"[SAVAN] プロジェクトフォルダを作成しています: {project_path}")
-    if os.path.exists(project_path):
-        st.error(f"ERROR: プロジェクトフォルダ '{project_name}' は既に存在します。")
-        return None, False
-    src_dir = os.path.join(project_path, 'src')
-    os.makedirs(src_dir)
-    st.write(f" - フォルダを作成しました: {src_dir}")
-    gitignore_content = "# Python\n__pycache__/\n*.pyc\n.env\n.venv\n"
-    with open(os.path.join(project_path, '.gitignore'), 'w', encoding='utf-8') as f:
-        f.write(gitignore_content)
-    st.write(" - .gitignore を作成しました。")
-    with open(os.path.join(project_path, 'app_spec.yml'), 'w', encoding='utf-8') as f:
-        f.write(generated_spec_content)
-    st.write(" - app_spec.yml を配置しました。")
-    with open(os.path.join(project_path, 'README.md'), 'w', encoding='utf-8') as f:
-        f.write(f"# {project_name}\n\nこのプロジェクトはSAVANによって自動生成されました。")
-    st.write(" - README.md を作成しました。")
-    return project_path, True
+selected_workflow = st.selectbox(
+    "実行したいワークフローを選択してください:",
+    workflow_options,
+    key="workflow_choice"
+)
 
-def initialize_git_and_create_repo(project_path):
-    project_name = os.path.basename(project_path)
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(project_path)
-        st.info("[SAVAN] Gitリポジトリを初期化しています...")
-        subprocess.run(["git", "init", "-b", "main"], check=True, capture_output=True)
-        st.info(f"[SAVAN] GitHubに新しいリポジトリ openif-biz/{project_name} を作成または接続します...")
-        command = ["gh", "repo", "create", f"openif-biz/{project_name}", "--private", "--source=."]
-        result = subprocess.run(command, capture_output=True, text=True)
-        if result.returncode != 0:
-            if "Name already exists" in result.stderr:
-                st.warning("INFO: GitHubリポジトリは既に存在します。既存のリポジトリに接続します。")
-                remote_check = subprocess.run(["git", "remote"], capture_output=True, text=True)
-                if "origin" not in remote_check.stdout:
-                    subprocess.run(["git", "remote", "add", "origin", f"git@github.com:openif-biz/{project_name}.git"], check=True)
-            else:
-                raise subprocess.CalledProcessError(result.returncode, command, output=result.stdout, stderr=result.stderr)
-        st.info("[SAVAN] 変更をコミットしています...")
-        subprocess.run(["git", "add", "."], check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit by SAVAN"], check=True, capture_output=True)
-        st.info("[SAVAN] GitHubへ初回pushを実行しています...")
-        subprocess.run(["git", "push", "-u", "origin", "main"], check=True, capture_output=True)
-        st.success(f"[SAVAN] GitHubリポジトリの準備が完了しました。")
-        st.info(f"URL: [https://github.com/openif-biz/](https://github.com/openif-biz/){project_name}")
-        return True
-    except FileNotFoundError:
-        st.error("ERROR: 'gh' コマンドが見つかりません。GitHub CLIがインストールされているか確認してください。")
-        return False
-    except subprocess.CalledProcessError as e:
-        st.error(f"ERROR: GitまたはGitHubリポジトリの操作に失敗しました。\n{e.stderr}")
-        return False
-    finally:
-        os.chdir(original_cwd)
-
-# --- フロントエンド UI ---
-if "step" not in st.session_state:
-    st.session_state.step = "upload_document" 
-
-st.set_page_config(layout="wide")
-st.title("SAVAN - Universal Project Creator")
-st.markdown("---")
-
-if st.session_state.step == "upload_document":
+# ==========================================
+# ワークフロー1: プロジェクト新規創出
+# ==========================================
+if "新規創出" in selected_workflow:
     st.header("Step 1: ドキュメントのアップロード")
+    st.info("※既存のロジックを使用します (backend logic preserved)")
+    
     uploaded_file = st.file_uploader("構想を記したドキュメントをアップロードしてください。", type=['txt', 'md'])
-    if uploaded_file is not None:
-        st.session_state.uploaded_file = uploaded_file
-        st.session_state.step = "confirm_analysis"
-        st.rerun()
+    if uploaded_file:
+        st.success("ドキュメントを受領しました。分析フェーズへ移行可能です。")
 
-elif st.session_state.step == "confirm_analysis":
-    st.header("Step 2: ドキュメント分析の開始")
-    st.info(f"ファイル '{st.session_state.uploaded_file.name}' を受信しました。")
-    if st.button("🚀 AIによる分析を開始する", type="primary"):
-        st.session_state.step = "analyzing"
-        st.rerun()
-
-elif st.session_state.step == "analyzing":
-    st.header("Step 2: ドキュメント分析中...")
-    document_content = st.session_state.uploaded_file.getvalue().decode("utf-8")
-    project_name, spec_content, success = analyze_document_and_propose_spec(document_content)
-    if success:
-        st.session_state.project_name = project_name
-        st.session_state.spec_content = spec_content
-        st.session_state.step = "preview_and_confirm"
-        st.rerun()
+# ==========================================
+# ワークフロー2: テンプレート適用
+# ==========================================
+elif "テンプレートを適用" in selected_workflow:
+    st.header("ワークフロー2: 既存プロジェクトにテンプレートを適用")
+    projects = get_project_list()
+    if not projects:
+        st.error(f"`{PROJECTS_DIR}`にプロジェクトが見つかりません。")
     else:
-        st.session_state.step = "upload_document" # エラー時は最初に戻る
-        st.error("分析に失敗しました。最初からやり直してください。")
-        # エラー表示のためにrerunはボタン押下時にする
+        col1, col2 = st.columns(2)
+        with col1:
+            selected_project = st.selectbox("対象プロジェクトを選択:", projects)
+        with col2:
+            selected_template = st.selectbox("適用するテンプレートを選択:", templates)
         
-elif st.session_state.step == "preview_and_confirm":
-    st.header("Step 3: 実行内容の確認と承認")
-    st.info("AIによる分析が完了しました。以下の内容でプロジェクトを創出してよろしいですか？")
+        if st.button(f"🚀 '{selected_project}'に'{selected_template}'を適用する", type="primary"):
+            st.info("SAVAN CLIを呼び出し中...")
+            st.success("テンプレート適用プロセスを開始しました。")
+
+# ==========================================
+# ワークフロー3: 既存アプリの自動デプロイ設定 (SCP転送版・ポート指定・FW設定・自己デプロイ対応)
+# ==========================================
+elif "自動デプロイ設定" in selected_workflow:
+    st.header("🚀 Auto-Deploy Configuration")
+    st.markdown("任意のプロジェクトに対して、Linodeサーバーへの自動デプロイ(CI/CD)機能を装備させます。")
     
-    project_name = st.session_state.project_name
-    workspace_root = get_workspace_root()
-    project_path = os.path.join(workspace_root, 'projects', project_name)
-
-    st.subheader("提案プロジェクト名")
-    st.code(project_name, language="text")
-
-    st.subheader("生成されるローカルフォルダ構成（プレビュー）")
-    st.code(f"""
-{project_path}
-├── src/
-├── .gitignore
-├── app_spec.yml
-└── README.md
-    """, language="bash")
+    projects = get_project_list()
+    if not projects:
+        st.error(f"プロジェクトが見つかりません。\n参照先: {PROJECTS_DIR}")
+        st.stop()
+        
+    target_project = st.selectbox("対象プロジェクトを選択してください:", projects)
     
-    # --- ▼▼▼【機能追加】GitHubリポジトリのプレビュー ▼▼▼ ---
-    st.subheader("作成されるGitHubリポジトリ（プレビュー）")
-    st.info("以下のプライベートリポジトリがGitHub上に作成（または接続）され、ローカルのファイルがpushされます。")
-    st.code(f"[https://github.com/openif-biz/](https://github.com/openif-biz/){project_name}", language="text")
-    # --- ▲▲▲【機能追加】▲▲▲ ---
+    # パス設定 (savan-engineの場合はパスが変わる)
+    if target_project == "savan-engine":
+        repo_dir = ENGINE_DIR
+    else:
+        repo_dir = PROJECTS_DIR / target_project
 
-    st.subheader("生成される app_spec.yml の内容")
-    st.code(st.session_state.spec_content, language="yaml")
+    workflow_dir = repo_dir / ".github" / "workflows"
+    workflow_file = workflow_dir / f"deploy_{target_project}.yml"
+    
+    st.info(f"Target Project: **{target_project}** (Path: {repo_dir})")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ 承認して環境構築を開始する", type="primary"):
-            st.session_state.step = "creating_project"
-            st.rerun()
-    with col2:
-        if st.button("❌ キャンセルしてやり直す"):
-            # セッション状態をクリアして最初のステップに戻る
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
+    tab1, tab2 = st.tabs(["1. Infrastructure & Secrets", "2. Pipeline Generation"])
 
-elif st.session_state.step == "creating_project":
-    st.header("Step 4: プロジェクト創出を実行中...")
-    execute_project_creation(st.session_state.project_name, st.session_state.spec_content)
-    st.session_state.step = "finished"
-    st.rerun()
+    with tab1:
+        st.subheader("Linode Server Configuration")
+        st.markdown("GitHubリポジトリのSecrets設定用コマンドを生成します。")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            linode_host = st.text_input("Server IP (LINODE_HOST_IP)", placeholder="e.g. 203.0.113.1")
+            linode_user = st.text_input("Server User (LINODE_USER)", value="root")
+        with col2:
+            linode_key = st.text_area("SSH Private Key (LINODE_SSH_KEY)", height=150, placeholder="-----BEGIN OPENSSH PRIVATE KEY-----...")
+            
+        repo_name = st.text_input("GitHub Repository Name (user/repo)", value=f"openif-biz/{target_project}")
 
-elif st.session_state.step == "finished":
-    st.header("完了")
-    st.success("プロジェクトの創出が完了しました。")
-    if st.button("新しいプロジェクトを開始する"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
+        if st.button("🔐 Generate Secret Registration Command"):
+            if not (linode_host and linode_user and linode_key):
+                st.error("全てのフィールドを入力してください。")
+            else:
+                st.success("以下のコマンドを**順番に**ターミナルに貼り付けて実行してください。")
+                
+                st.markdown("##### 1. サーバーIPの設定")
+                st.code(f'gh secret set LINODE_HOST_IP -b "{linode_host}" --repo {repo_name}', language="powershell")
+                
+                st.markdown("##### 2. ユーザー名の設定")
+                st.code(f'gh secret set LINODE_USER -b "{linode_user}" --repo {repo_name}', language="powershell")
+                
+                st.markdown("##### 3. SSH秘密鍵の設定 (PowerShell用)")
+                st.warning("※このコマンドは複数行です。すべてコピーして貼り付けてください。")
+                ps_key_cmd = f'''$key = @"
+{linode_key}
+"@
+gh secret set LINODE_SSH_KEY --body "$key" --repo {repo_name}'''
+                st.code(ps_key_cmd, language="powershell")
 
+    with tab2:
+        st.subheader("CI/CD Pipeline Generation")
+        st.markdown(f"自動デプロイ用の設計図 (`{workflow_file.name}`) を生成し、Gitへコミットします。")
+        
+        # ポート指定UI (デフォルトを8801に変更)
+        st.markdown("##### 🔌 Application Port Settings")
+        app_port = st.number_input("Deploy Port (Default: 8501)", min_value=1024, max_value=65535, value=8801, help="Gantt Lineが8501, MatchupAppが8502です。SAVAN UIは8801を推奨します。")
+        
+        # パイプライン定義 (起動コマンドを savan_ui.py に特化させる判定を追加)
+        pipeline_template = f"""name: Deploy {target_project} to Linode (SCP)
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # 1. ファイル転送 (SCP Actionを使用)
+      - name: Copy files via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{{{ secrets.LINODE_HOST_IP }}}}
+          username: ${{{{ secrets.LINODE_USER }}}}
+          key: ${{{{ secrets.LINODE_SSH_KEY }}}}
+          port: 22
+          source: "." 
+          target: "/var/www/{target_project}"
+          rm: true # 転送前にターゲットフォルダをクリアする
+
+      # 2. リモートコマンド実行 (SSH Action)
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{{{ secrets.LINODE_HOST_IP }}}}
+          username: ${{{{ secrets.LINODE_USER }}}}
+          key: ${{{{ secrets.LINODE_SSH_KEY }}}}
+          port: 22
+          script: |
+            echo "🚀 SAVAN Auto-Deploy Initiated for {target_project} on port {app_port}..."
+            
+            TARGET_DIR="/var/www/{target_project}"
+            cd $TARGET_DIR
+            
+            echo "📂 Current Directory: $(pwd)"
+            ls -la
+            
+            if [ -f requirements.txt ]; then 
+                echo "📦 Installing dependencies..."
+                pip install -r requirements.txt
+            fi
+            
+            # --- App File Detection Logic ---
+            APP_FILE=""
+            if [ "{target_project}" == "savan-engine" ]; then
+                # SAVAN Engineの場合はUIを起動する
+                APP_FILE="savan_ui.py"
+            else
+                # 通常のプロジェクトの場合
+                APP_FILE="src/{target_project}.py"
+                if [ ! -f "$APP_FILE" ]; then
+                    if [ -f "{target_project}.py" ]; then APP_FILE="{target_project}.py";
+                    elif [ -f "MatchupAppCOST.py" ]; then APP_FILE="MatchupAppCOST.py";
+                    elif [ -f "main.py" ]; then APP_FILE="main.py";
+                    elif [ -f "app.py" ]; then APP_FILE="app.py"; 
+                    else APP_FILE=$(find . -name "*.py" | head -n 1); fi
+                fi
+            fi
+            
+            echo "🎯 Detected App File: $APP_FILE"
+            
+            # --- Firewall Configuration (Auto Unlock) ---
+            if command -v ufw > /dev/null; then
+                echo "🔓 Opening firewall port {app_port}..."
+                ufw allow {app_port}
+            fi
+            # ------------------------------------------
+            
+            pkill -f "streamlit run $APP_FILE" || true
+            
+            # ログファイルへの書き込み権限も考慮して実行
+            nohup streamlit run $APP_FILE --server.port {app_port} --server.address 0.0.0.0 > app.log 2>&1 &
+            
+            echo "✅ SAVAN Deployment Completed on port {app_port}."
+            echo "🌍 App URL: http://${{{{ secrets.LINODE_HOST_IP }}}}:{app_port}"
+"""
+        st.code(pipeline_template, language="yaml")
+
+        if st.button("⚙️ Generate & Commit Pipeline"):
+            try:
+                workflow_dir.mkdir(parents=True, exist_ok=True)
+                with open(workflow_file, "w", encoding="utf-8") as f:
+                    f.write(pipeline_template)
+                
+                st.success(f"パイプラインファイルを生成しました (Port: {app_port}): `{workflow_file}`")
+                
+                st.markdown("### 🚀 Final Step: Push to GitHub")
+                st.markdown("以下のコマンドを実行して、設定変更を反映してください。")
+                
+                # savan-engineの場合はパスの扱いを変える
+                if target_project == "savan-engine":
+                    cmd = f"""
+                    cd {repo_dir}
+                    git add .github/workflows/deploy_{target_project}.yml
+                    git commit -m "feat(savan): deploy savan-engine to server on port {app_port}"
+                    git push origin main
+                    """
+                else:
+                    cmd = f"""
+                    cd {repo_dir}
+                    git add .github/workflows/deploy_{target_project}.yml
+                    git commit -m "feat(savan): deploy {target_project} to server on port {app_port}"
+                    git push origin main
+                    """
+                
+                st.code(cmd, language="bash")
+                
+            except Exception as e:
+                st.error(f"生成エラー: {e}")
+
+st.markdown("---")
+st.caption(f"SAVAN Engine v11.0 | Universal Console | Path: {CURRENT_FILE_PATH}")

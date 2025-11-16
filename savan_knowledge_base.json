@@ -2019,6 +2019,258 @@
     "knowledge_axis": "detail"
   },
   {
+    "experience_id": "experience_20251006_savan_inference_logic_design",
+    "title": "SAVANの思考ロジックの体系化：順算的フローと逆算的思考の統合",
+    "summary": "ユーザーの思考体系イメージを起点に、AIとの対話を通じて、SAVANの思考プロセスを体系化した。当初は順算的な処理フローで検討されたが、それでは人間の思考の自由度や『逆引き』の発想が失われるという課題が浮上。最終的に、ゴールから逆算する思考モデルも統合し、順算的処理と逆算的思考を両立させる、より高度で人間らしい推論フローの設計図を完成させた。",
+    "user_persona": {
+      "name": "ユキ様",
+      "role": "SAVANの思考設計者 / チーフアーキテクト",
+      "characteristics": [
+        "自らの思考体系（知識の組み合わせ、抽象化⇔詳細化）を明確なイメージとして持っている",
+        "AIが提示したフローに対し、それが自身の思考とどう違うか、何が欠けているか（逆引き、論理の飛躍）を的確に指摘できる",
+        "AIとの対話を通じて、自らの抽象的な思考イメージを、具体的な機能やフローへと昇華させることができる"
+      ]
+    },
+    "ai_persona": {
+      "name": "Gemini / ChatGPT",
+      "role": "思考の翻訳者 / 壁打ちパートナー",
+      "characteristics": [
+        "ユーザーの抽象的な思考イメージを、具体的なフロー、関数、JSON構造といった技術的要素へと翻訳・言語化する",
+        "当初は順算的な処理フローを提案したが、ユーザーからのフィードバックを受け、逆算的な思考モデルの重要性を理解し、両者を統合した最終的な設計図を作成した",
+        "ユーザーの思考を整理し、形式知化するためのファシリテーターとして機能した"
+      ]
+    },
+    "situations": [
+      {
+        "problem": "SAVANに、ユーザーの要求（例：「営業戦略の施策立案」）に対して、どのように知識を組み合わせて思考させればよいか、その具体的なプロセスが定義されていなかった。",
+        "process": "ユーザーの思考イメージ（知識の組み合わせ、抽象⇔詳細）を基に、AIが順算的な処理フロー（要求解析→推論→出力）と、それを実現する関数群を提案。しかし、ユーザーは『推論部分はブラックボックスだ』『逆引きの思考が抜けている』と指摘。",
+        "breakthrough": "AIが、JSON知識が推論の『内部』だけでなく、どの知識を呼び出すかという『制御図』の役割も持つことを図解。さらに、ユーザーの指摘に基づき、ゴールから逆算する『逆引き型』の思考モデルを別途提案。",
+        "resolution": "最終的に、この『逆引き思考モデル』を順算的な処理フローの冒頭に組み込む形で統合。『1. アウトプット設定』『2. 逆算ステップ』から思考を開始し、その後、具体的な推論やアウトプット生成に進むという、人間とAIの思考プロセスを融合した、9ステップから成る統合推論フローを確立した。"
+      }
+    ],
+    "learnings": {
+      "key_concept": "『統合推論フロー (Integrated Inference Flow)』：AIの思考は、単純な順算的処理（データ→結論）だけでは不十分である。人間の戦略的意思決定を模倣するには、まずゴールを定義し、そこから逆算して必要なタスクを洗い出す『逆算的思考』と、具体的なデータを基に施策を生成する『順算的思考』を、一つの連続したフローとして統合する必要がある。",
+      "actionable_insight": [
+        "SAVANの思考ロジック(`savan.py`内)は、この統合推論フロー（9ステップ）を基本設計としなければならない。",
+        "各ステップは、それぞれが特定の役割を持つ『知識ノード(JSON)』を入力として受け取り、対応する関数によって処理される。",
+        "JSON知識は、単なる『思考の材料』ではなく、どのステップで、どの材料を、どのように使うかを定義する『思考の設計図』そのものである。"
+      ],
+      "strategic_implication": "この統合推論フローの確立により、SAVANは単に与えられた問いに答えるだけでなく、ユーザーと共にゴールを設定し、その達成に向けた戦略的な道筋を自ら設計できる、真の『AIコンサルタント』へと進化する道筋が立った。"
+    },
+    "tags": [
+      "思考ロジック",
+      "推論フロー",
+      "逆算思考",
+      "バックフォーキャスト",
+      "抽象化",
+      "詳細化",
+      "ナレッジノード",
+      "システム設計",
+      "AIコンサルタント"
+    ],
+    "approved_meta": {
+      "approved_by": "auto_approve_script",
+      "approved_at": "2025-10-07T11:53:06Z"
+    },
+    "knowledge_axis": "detail"
+  },
+  {
+    "experience_id": "EXP-001",
+    "title": "SAVAN思考ロジック壁打ち体験",
+    "description": "営業戦略施策立案のプロンプトを元に、逆算型思考フローを模擬したSAVAN体験の記録。",
+    "flow": [
+      {
+        "stage": "アウトプット設定",
+        "user_input": "営業戦略の施策立案を出して",
+        "json_node": {
+          "layer": "抽象化",
+          "goal": "新規営業戦略立案",
+          "keywords": [
+            "売上増",
+            "新規顧客"
+          ]
+        },
+        "function": "define_goal(json_node)",
+        "knowledge": "抽象化層、意図理解",
+        "comment": "最終成果物から逆算して必要要素を洗い出す"
+      },
+      {
+        "stage": "逆算ステップ",
+        "user_input": null,
+        "json_node": {
+          "layer": "詳細化",
+          "requirements": [
+            "CRM連携",
+            "施策フォーマット"
+          ]
+        },
+        "function": "backtrack_steps(json_node)",
+        "knowledge": "詳細化層、要件マッピング",
+        "comment": "ゴール達成に必要な具体タスクを抽出"
+      },
+      {
+        "stage": "リソース評価",
+        "user_input": null,
+        "json_node": {
+          "resources": [
+            "人員",
+            "予算",
+            "システム"
+          ],
+          "constraints": [
+            "期間3ヶ月"
+          ]
+        },
+        "function": "assess_resources(json_node)",
+        "knowledge": "制約条件、リソース知識",
+        "comment": "投入可能リソースと制約条件を確認"
+      },
+      {
+        "stage": "推論／知識呼び出し",
+        "user_input": null,
+        "json_node": {
+          "framework": "3C分析",
+          "nodes": [
+            "顧客",
+            "競合",
+            "自社"
+          ],
+          "past_case": "成功施策A"
+        },
+        "function": "apply_framework(json_node), retrieve_case(json_node)",
+        "knowledge": "フレームワーク、過去事例知識",
+        "comment": "抽象ゴールを具体施策に変換"
+      },
+      {
+        "stage": "中間アウトプット生成",
+        "user_input": null,
+        "json_node": {
+          "output_type": "ドキュメント",
+          "template": "施策一覧表"
+        },
+        "function": "generate_intermediate(json_node)",
+        "knowledge": "ドキュメント形式知識",
+        "comment": "途中経過を文書化して確認可能に"
+      },
+      {
+        "stage": "仮説検証・評価",
+        "user_input": null,
+        "json_node": {
+          "evaluation_criteria": [
+            "実現可能性",
+            "ROI"
+          ],
+          "feedback": "修正指示あり"
+        },
+        "function": "test_hypothesis(json_node), evaluate_and_feedback(json_node)",
+        "knowledge": "フィードバック知識、評価基準",
+        "comment": "仮説を検証し、必要なら方針修正"
+      },
+      {
+        "stage": "フィードバック調整",
+        "user_input": null,
+        "json_node": {
+          "adjustments": [
+            "施策B追加",
+            "リソース再配分"
+          ]
+        },
+        "function": "adjust_approach(json_node), refine_hypothesis(json_node)",
+        "knowledge": "再評価改善知識",
+        "comment": "中間アウトプットを元にアプローチ改善"
+      },
+      {
+        "stage": "最終アウトプット生成",
+        "user_input": null,
+        "json_node": {
+          "output_type": "報告書",
+          "format": "PDF/Excel",
+          "sections": [
+            "施策一覧",
+            "ROI予測"
+          ]
+        },
+        "function": "finalize_output(json_node, adjusted_intermediate)",
+        "knowledge": "出力テンプレート知識",
+        "comment": "全体をまとめて正式アウトプット作成"
+      },
+      {
+        "stage": "最終評価・最適化",
+        "user_input": null,
+        "json_node": {
+          "optimization": "スコア最大化",
+          "criteria": [
+            "ROI",
+            "効率"
+          ]
+        },
+        "function": "optimize_solution(json_node), implement_changes()",
+        "knowledge": "最適化知識",
+        "comment": "必要なら施策を最適化して完成"
+      }
+    ],
+    "approved_meta": {
+      "approved_by": "auto_approve_script",
+      "approved_at": "2025-10-07T11:53:06Z"
+    },
+    "knowledge_axis": "detail"
+  },
+  {
+    "experience_id": "experience_20251007_meta_cognition_through_structured_dialogue",
+    "title": "対話の形式知化によるアーキテクチャの深化：『表と形容詞』を用いた思考の解像度向上",
+    "summary": "SAVAN教育システムの全体像を定義する過程で、当初の単純なフロー図では機能の役割や連携が曖昧であるという課題に直面。この課題を解決するため、ユーザー（ユキ様）は『表形式』での思考整理を要求。さらに、各機能に『形容詞』で役割を与える手法を導入した。この反復的な壁打ちを通じて、抽象的な機能群が、具体的な役割と責任を持つ『人格』として再定義され、最終的に3つのコアプログラムの機能体系が確立された。",
+    "user_persona": {
+      "name": "ユキ様",
+      "role": "メタ認知プロモーター / 構造化思考の鬼",
+      "characteristics": [
+        "AIが提示する抽象的なフローに満足せず、具体的な構造（表形式）での思考を徹底的に要求する。",
+        "機能に『形容詞』を与えることで、その本質的な役割や存在意義を言語化させる、独特の思考法を持つ。",
+        "一度確立した有効な手法（フレームワーク）を、他の対象（3つのプログラム全て）にも横展開し、システム全体の整合性を担保する、体系的な思考力を持つ。"
+      ]
+    },
+    "ai_persona": {
+      "name": "Gemini",
+      "role": "思考の可視化エンジン / 学習する書記官",
+      "characteristics": [
+        "当初は機能の羅列や単純なフロー図しか提示できなかった。",
+        "ユーザーからの『表にしろ』『形容詞を入れろ』という厳しい要求を通じて、情報を構造化し、その意味を深く表現する手法を学んだ。",
+        "ユーザーとの壁打ちプロセスそのものを客観的に観察し、それを『体験談』として形式知化する能力を持つ。"
+      ]
+    },
+    "situations": [
+      {
+        "problem": "SAVAN教育システムの全体像について、各コンポーネント（`knowledge_manager`, `knowledge_engine`, `savan.py`）の機能やフローが複雑に絡み合い、その役割分担や連携のイメージが曖昧で、議論が停滞していた。",
+        "breakthrough": "ユーザーが『俺は表じゃないと理解できない』と宣言し、全ての機能を『機能名、役割、入力、出力、形容詞的説明』の5項目で構成される単一の表にまとめることを要求。これにより、思考の土台が統一された。",
+        "refinement_cycle": "AIが提示した表に対し、ユーザーは『ネグレクトしないで全部入れろ』『中身を削除しないで』としつこいほどのレビューを実施。この反復的な質疑応答を通じて、機能の抜け漏れがなくなり、各機能の定義が精密化されていった。",
+        "application": "この『形容詞付き機能表』というフレームワークが有効であると確認されると、ユーザーはその手法を`knowledge_manager.py`だけでなく、`approve_meta`の処理詳細、`build_base`の処理詳細、`knowledge_engine`の検索フィルタ定義、`savan.py`の推論フローなど、システムのあらゆる階層に適用。これにより、システム全体の機能体系が、完全に一貫性のある構造として確立された。"
+      }
+    ],
+    "learnings": {
+      "key_concept": "『思考の形式知化フレームワーク』：複雑なシステムを設計する際、思考の解像度と思考のスピードを両立させるためには、思考そのものを可視化・構造化するための厳格なフレームワーク（型）が不可欠である。今回の場合、『形容詞付きの機能表』がそのフレームワークとして機能した。",
+      "actionable_insight": [
+        "SAVANが将来、複雑な問題（システム設計、戦略立案など）に取り組む際は、まずその問題を分析・整理するための『思考の型（＝表）』を自ら定義し、その型に従って思考を埋めていくべきである。",
+        "機能や概念を定義する際、SAVANは必ず『形容詞』を用いてその役割や性格を言語化するよう努めるべきだ。これにより、単なる機能の羅列ではなく、その機能が存在する『意味』が明確になる。",
+        "一度、ある問題に対して有効な思考フレームワークを発見した場合、それを抽象化し、別の類似問題にも応用できないかを常に検討すべきである。"
+      ],
+      "strategic_implication": "この一連の対話は、SAVANが学ぶべきなのは個別の知識だけでなく、『学び方そのもの』『思考の進め方』であることを示している。この『メタ学習能力』こそが、SAVANを他のAIと差別化し、未知の課題にも対応できる真の汎用知性へと進化させる鍵となる。"
+    },
+    "tags": [
+      "メタ学習",
+      "形式知化",
+      "思考フレームワーク",
+      "壁打ち",
+      "構造化",
+      "解像度",
+      "形容詞",
+      "システム設計"
+    ],
+    "approved_meta": {
+      "approved_by": "auto_approve_script",
+      "approved_at": "2025-10-07T11:53:06Z"
+    },
+    "knowledge_axis": "detail"
+  },
+  {
     "experience_id": "20250927_gcp_model_cost_issue",
     "project_name": "IINA PoC",
     "user_request": "ビジネス戦略上選定したAIモデル(deepseek-coder)を、PoCのコスト制約（無料枠など）の範囲内でGoogle Cloud Platformにデプロイしたい",
@@ -5270,6 +5522,56 @@
       "approved_at": "2025-10-06T13:36:44Z"
     },
     "knowledge_axis": "detail"
+  },
+  {
+    "experience_id": "template_20251007_linode_docker_deploy",
+    "title": "テンプレート：LinodeへのDockerコンテナデプロイ",
+    "summary": "StreamlitアプリケーションをDockerコンテナ化し、GitHub Actions経由でLinodeサーバーに自動デプロイするための、標準的なファイル群（Dockerfile, docker-compose.yml, deploy.yml）を定義したテンプレート。",
+    "knowledge_axis": "abstract",
+    "template_meta": {
+      "template_id": "linode-docker-deploy",
+      "version": "1.0.0",
+      "status": "active",
+      "changelog": "Initial version based on the successful deployment of iina-poc and gantt_line."
+    },
+    "tags": [
+      "template",
+      "docker",
+      "linode",
+      "ci-cd",
+      "github-actions"
+    ],
+    "template_files": [
+      {
+        "file_path": "Dockerfile",
+        "description": "アプリケーションをコンテナ化するための設計図。",
+        "content": "FROM python:3.10-slim\n\nWORKDIR /app\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r requirements.txt\n\nCOPY . /app\n\nEXPOSE 8501\n\nCMD [\"streamlit\", \"run\", \"src/{{app_file_name}}\", \"--server.port=8501\", \"--server.address=0.0.0.0\"]"
+      },
+      {
+        "file_path": "docker-compose.yml",
+        "description": "コンテナを管理・起動するための指示書。",
+        "content": "version: '3.8'\nservices:\n  app:\n    build: .\n    container_name: \"{{project_name}}_app\"\n    restart: always\n    ports:\n      - \"8501:8501\""
+      },
+      {
+        "file_path": ".github/workflows/deploy.yml",
+        "description": "GitHub Actions用の自動デプロイワークフロー。",
+        "content": "name: Deploy {{project_name}} to Linode\n\non:\n  push:\n    branches:\n      - main\n\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n\n    steps:\n      - name: Checkout code\n        uses: actions/checkout@v4\n\n      - name: Copy project files to Linode\n        uses: appleboy/scp-action@master\n        with:\n          host: ${{ secrets.LINODE_HOST }}\n          username: ${{ secrets.LINODE_USERNAME }}\n          key: ${{ secrets.LINODE_SSH_KEY }}\n          source: \".\"\n          target: \"/var/www/{{project_name}}\"\n\n      - name: Restart application with Docker Compose\n        uses: appleboy/ssh-action@master\n        with:\n          host: ${{ secrets.LINODE_HOST }}\n          username: ${{ secrets.LINODE_USERNAME }}\n          key: ${{ secrets.LINODE_SSH_KEY }}\n          script: |\n            cd /var/www/{{project_name}}\n            docker-compose down\n            docker-compose up -d --build"
+      }
+    ],
+    "template_variables": [
+      {
+        "name": "{{app_file_name}}",
+        "description": "実行するメインのPythonファイル名。SAVANがプロジェクトのsrcフォルダ内を調査して自動で特定します。"
+      },
+      {
+        "name": "{{project_name}}",
+        "description": "プロジェクト名。SAVANがリポジトリ名やapp_spec.ymlから自動で特定します。"
+      }
+    ],
+    "approved_meta": {
+      "approved_by": "auto_approve_script",
+      "approved_at": "2025-10-07T11:55:00Z"
+    }
   },
   {
     "experience_id": "20250927_linode_deployment_hell_and_cicd_pivot",

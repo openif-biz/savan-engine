@@ -1,0 +1,84 @@
+{
+  "dynamic_navigation": [
+    {
+      "step": 1,
+      "knowledge_node_id": "V_PROCESS_RESEARCH_H_FUNCTIONAL_MARKET",
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "market_strategy",
+      "description": "市場情報・競合・製品・価格などを調査",
+      "next_nodes": ["V_PROCESS_ANALYSIS_H_FUNCTIONAL_MARKET"]
+    },
+    {
+      "step": 2,
+      "knowledge_node_id": "V_PROCESS_ANALYSIS_H_FUNCTIONAL_MARKET",
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "market_strategy",
+      "description": "調査データを分類・分析・SWOT/5FORCE等で評価",
+      "next_nodes": ["V_PROCESS_STRATEGY_H_FUNCTIONAL_SALES"]
+    },
+    {
+      "step": 3,
+      "knowledge_node_id": "V_PROCESS_STRATEGY_H_FUNCTIONAL_SALES",
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "sales_strategy",
+      "description": "営業戦略に沿った施策案を立案",
+      "next_nodes": ["V_PROCESS_PRIORITY_H_FUNCTIONAL_SALES"]
+    },
+    {
+      "step": 4,
+      "knowledge_node_id": "V_PROCESS_PRIORITY_H_FUNCTIONAL_SALES",
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "sales_strategy",
+      "description": "施策の優先順位を設定（経済効果・緊急度・難易度）",
+      "next_nodes": ["V_PROCESS_EXECUTION_H_FUNCTIONAL_MARKET"]
+    },
+    {
+      "step": 5,
+      "knowledge_node_id": "V_PROCESS_EXECUTION_H_FUNCTIONAL_MARKET",
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "market_strategy",
+      "description": "施策を実行するためのシーケンスとKPI設計",
+      "next_nodes": []
+    },
+    {
+      "step": 6,
+      "knowledge_node_id": "V_META_PROBLEM_H_BASIC_BUSINESS",
+      "vertical_axis": "V_META",
+      "horizontal_axis": "business_strategy",
+      "description": "課題を俯瞰的に整理、ゴール定義",
+      "next_nodes": ["V_META_STRUCTURAL_H_BASIC_BUSINESS"]
+    },
+    {
+      "step": 7,
+      "knowledge_node_id": "V_META_STRUCTURAL_H_BASIC_BUSINESS",
+      "vertical_axis": "V_META",
+      "horizontal_axis": "business_strategy",
+      "description": "課題・施策・データの関係を可視化",
+      "next_nodes": ["V_META_VALUE_H_BASIC_BUSINESS", "V_META_STRATEGY_H_BASIC_BUSINESS"]
+    },
+    {
+      "step": 8,
+      "knowledge_node_id": "V_META_VALUE_H_BASIC_BUSINESS",
+      "vertical_axis": "V_META",
+      "horizontal_axis": "business_strategy",
+      "description": "戦略や施策の価値設計",
+      "next_nodes": ["V_META_STRATEGY_H_BASIC_BUSINESS"]
+    },
+    {
+      "step": 9,
+      "knowledge_node_id": "V_META_STRATEGY_H_BASIC_BUSINESS",
+      "vertical_axis": "V_META",
+      "horizontal_axis": "business_strategy",
+      "description": "競争優位・価値創出のシナリオ策定",
+      "next_nodes": ["V_META_IMPLEMENTATION_H_BASIC_BUSINESS"]
+    },
+    {
+      "step": 10,
+      "knowledge_node_id": "V_META_IMPLEMENTATION_H_BASIC_BUSINESS",
+      "vertical_axis": "V_META",
+      "horizontal_axis": "business_strategy",
+      "description": "戦略を実務へ落とし込み、学習フィードバックを設計",
+      "next_nodes": []
+    }
+  ]
+}

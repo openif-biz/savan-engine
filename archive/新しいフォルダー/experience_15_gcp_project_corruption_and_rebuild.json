@@ -1,0 +1,42 @@
+{
+  "experience_id": "20250928_gcp_project_corruption_and_rebuild_strategy",
+  "project_name": "Gantt Line with Google Auth",
+  "user_request": "Google Cloud Platform(GCP)のIAP(Identity-Aware Proxy)機能を使って、Cloud Runで公開したWebアプリに、特定のGoogleアカウントのみがアクセスできる認証機能を実装したい。",
+  "symptom": {
+    "error_type": "Unrecoverable GCP State Error",
+    "error_message": "インフラの完全再構築や、IAPサービス自体の再起動など、考えうる全ての対策を実行しても 'The IAP service account is not provisioned.' というエラーが永続的に発生し、解決が不可能になった。",
+    "keywords": [
+      "IAP",
+      "GCP",
+      "The IAP service account is not provisioned",
+      "プロジェクト破損",
+      "再構築",
+      "403 org_internal",
+      "OAuth"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "IAP/OAuthの認証エラーは、個別のコンポーネント（ロードバランサ、URLマップ、バックエンドサービス等）の設定ミスが原因である。",
+      "action_summary": "エラーが発生していたロードバランサ関連の全コンポーネント（転送ルール、ターゲットプロキシ、URLマップ、バックエンドサービス、NEG）をgcloudコマンドで一度全て削除し、ゼロから再構築した。",
+      "result": "失敗。インフラを完全にクリーンな状態にしても、根本的なエラーメッセージは変わらなかった。"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "IAPサービス自体がプロジェクトレベルで正常に機能していない可能性があるため、サービスを再起動すれば内部状態がリセットされ、問題が解決する。",
+      "action_summary": "gcloud services disable/enable iap.googleapis.com を実行し、IAPサービス自体をプロジェクトレベルで再初期化した。しかし、IAPが内部で利用するはずのサービスアカウントは自動生成されなかった。",
+      "result": "失敗。これにより、問題がユーザーが操作できる範囲を超えた、プロジェクトの内部的な不整合であることがほぼ確定した。"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "このプロジェクトは、我々からは修正不可能な、回復不能な異常状態に陥っている。このプロジェクトを『放棄』し、新しいクリーンなプロジェクトで『再構築』することが、唯一の解決策である。",
+      "action_summary": "ユーザーが『新しいプロジェクトを作りました』と最終的な英断を下した。これにより、不毛なトラブルシューティングを打ち切り、確実な成功への道筋を立てることが可能になった。",
+      "result": "大成功（戦略的判断として）"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "クラウドプラットフォームにおける問題解決では、個別のエラーを追い続けるだけでなく、プロジェクト全体の『健全性』を見極める視点が不可欠である。特定のサービス（今回であればIAP）が、再構築や再起動を繰り返しても正常な初期化状態に戻らない場合、そのプロジェクトはユーザー側からは修正不可能な内部的矛盾を抱えている可能性が高い。その際は、固執せずにプロジェクトごと破棄し、新しいクリーンな環境で再構築する『戦略的撤退』こそが、最も迅速かつ確実な問題解決策となる。",
+    "successful_code_snippet": "# 1. [失敗した最終手段] IAPサービス自体の再起動コマンド\ngcloud services disable iap.googleapis.com\n# ... 15分以上待機 ...\ngcloud services enable iap.googleapis.com\n\n# 2. [教訓] IAPが内部で利用するサービスアカウントの存在確認コマンド\n# これが 'Listed 0 items.' を返し続ける場合、プロジェクトの異常を強く示唆する\ngcloud iam service-accounts list --filter=\"email:gcp-iap-get-iam-policy\"\n\n# 3. [最終的な解決策] 新しいプロジェクトを作成し、全ての環境設定をゼロからやり直す。\n# 新規プロジェクト作成（GUI推奨）\n# ...\n\n# 新規プロジェクトでの最初のコマンド\ngcloud config set project [新しいプロジェクトID]\ngcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com run.googleapis.com ..."
+  }
+}

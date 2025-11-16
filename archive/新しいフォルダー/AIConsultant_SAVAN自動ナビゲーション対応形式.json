@@ -1,0 +1,148 @@
+{
+  "knowledge_model": {
+    "vertical_axis": {
+      "V_PROCESS": {
+        "description": "プロセス思考：企画内容を手順に沿って具体化",
+        "nodes": {
+          "research": {
+            "description": "市場・技術・製品・価格・規制・競合・財務・業務プロセスなどの調査",
+            "next_nodes": [
+              "analysis"
+            ]
+          },
+          "analysis": {
+            "description": "調査情報の分析（傾向分析・分類化・抽象化・ベンチマーク・SWOT・5FORCE・3C）",
+            "next_nodes": [
+              "strategy_design",
+              "priority_setting"
+            ]
+          },
+          "strategy_design": {
+            "description": "ターゲティングシナリオ、サクセスストーリー、ホラーストーリーによる施策立案",
+            "next_nodes": [
+              "priority_setting"
+            ]
+          },
+          "priority_setting": {
+            "description": "施策の優先順位設定（経済効果度、緊急度、難易度）",
+            "next_nodes": [
+              "execution_plan"
+            ]
+          },
+          "execution_plan": {
+            "description": "施策実行計画策定（シーケンス設計・逆算思考・KPI設定）",
+            "next_nodes": []
+          }
+        }
+      },
+      "V_META": {
+        "description": "メタ思考：抽象的・俯瞰的に戦略全体を整理",
+        "nodes": {
+          "problem_framing": {
+            "description": "Goal Framing, Why-Tree, Context Mapping",
+            "next_nodes": [
+              "structural_thinking"
+            ]
+          },
+          "structural_thinking": {
+            "description": "課題・データ・施策の関係構造を可視化",
+            "next_nodes": [
+              "value_design",
+              "strategy_design_meta"
+            ]
+          },
+          "value_design": {
+            "description": "戦略や施策の社会的意味付け",
+            "next_nodes": [
+              "strategy_design_meta"
+            ]
+          },
+          "strategy_design_meta": {
+            "description": "シナリオ策定、競争優位・価値創出設計",
+            "next_nodes": [
+              "implementation_structuring"
+            ]
+          },
+          "implementation_structuring": {
+            "description": "戦略の実務落とし込み、学習フィードバック設計",
+            "next_nodes": []
+          }
+        }
+      }
+    },
+    "horizontal_axis": {
+      "H_BASIC": {
+        "description": "基本戦略：全体最適思考",
+        "nodes": {
+          "corporate_strategy": {
+            "description": "経営理念・事業ポートフォリオ・資源配分原則",
+            "next_nodes": []
+          },
+          "business_strategy": {
+            "description": "事業単位の市場・技術・顧客・収益モデル設計",
+            "next_nodes": []
+          }
+        }
+      },
+      "H_FUNCTIONAL": {
+        "description": "機能戦略：部門最適思考",
+        "nodes": {
+          "market_strategy": {
+            "description": "ターゲット設定・セグメント化・ブランドポジション・KPI設計",
+            "next_nodes": []
+          },
+          "technology_strategy": {
+            "description": "技術ロードマップ・R&Dテーマ・知財活用",
+            "next_nodes": []
+          },
+          "sales_strategy": {
+            "description": "顧客獲得・販売チャネル・商品ポートフォリオ最適化",
+            "next_nodes": []
+          },
+          "quality_strategy": {
+            "description": "品質基準策定・顧客満足度モニタリング・改善サイクル構築",
+            "next_nodes": []
+          }
+        }
+      }
+    },
+    "integration_matrix": [
+      {
+        "v_node": "research",
+        "h_node": "market_strategy",
+        "knowledge_node_id": "V_PROCESS_RESEARCH_H_FUNCTIONAL_MARKET",
+        "description": "市場調査を通して部門別市場戦略のデータを収集",
+        "next_nodes": [
+          "analysis"
+        ]
+      },
+      {
+        "v_node": "analysis",
+        "h_node": "market_strategy",
+        "knowledge_node_id": "V_PROCESS_ANALYSIS_H_FUNCTIONAL_MARKET",
+        "description": "収集した市場データの分析と施策案検討",
+        "next_nodes": [
+          "strategy_design"
+        ]
+      },
+      {
+        "v_node": "strategy_design",
+        "h_node": "sales_strategy",
+        "knowledge_node_id": "V_PROCESS_STRATEGY_H_FUNCTIONAL_SALES",
+        "description": "営業戦略に沿った施策立案",
+        "next_nodes": [
+          "priority_setting"
+        ]
+      },
+      {
+        "v_node": "strategy_design_meta",
+        "h_node": "business_strategy",
+        "knowledge_node_id": "V_META_STRATEGY_H_BASIC_BUSINESS",
+        "description": "事業戦略全体の方向性策定",
+        "next_nodes": [
+          "implementation_structuring"
+        ]
+      }
+    ]
+  }
+}
