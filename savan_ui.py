@@ -20,7 +20,7 @@ MODEL_PATH = get_model_path()
 # --- パス解決ロジック (強化版) ---
 CURRENT_FILE_PATH = Path(__file__).resolve()
 ENGINE_DIR = CURRENT_FILE_PATH.parent # savan-engine
-ROOT_DIR = ENGINE_DIR.parent          # local_savan
+ROOT_DIR = ENGINE_DIR.parent          # local_savan または /var/www
 PROJECTS_DIR = ROOT_DIR / 'projects'
 SAVAN_PY_PATH = os.path.join(os.path.dirname(__file__), "savan.py")
 
@@ -32,17 +32,37 @@ st.divider()
 
 # --- Helper Functions ---
 def get_project_list():
-    """projectsディレクトリ配下 + savan-engine自身をリスト化"""
-    projects = []
+    """
+    【修正ロジック】
+    ローカルPC (projects/) とサーバー (ROOT_DIR) の両方をスキャンし、プロジェクトをリスト化
+    """
+    projects = set() # 重複を避けるためにsetを使用
     
-    # projectsフォルダ内のディレクトリ
+    # 1. ローカルPCの 'projects' フォルダをスキャン
     if PROJECTS_DIR.exists():
-        projects.extend([d.name for d in PROJECTS_DIR.iterdir() if d.is_dir()])
+        for d in PROJECTS_DIR.iterdir():
+            if d.is_dir() and not d.name.startswith('.'):
+                projects.add(d.name)
     
-    # savan-engine自身を追加 (自己デプロイ用)
-    projects.append("savan-engine")
+    # 2. サーバの /var/www/ (ROOT_DIR) をスキャン
+    #    (ローカル実行時は local_savan/ をスキャンするが、欲しいのは 'savan-engine' だけ)
+    if ROOT_DIR.exists():
+        for d in ROOT_DIR.iterdir():
+            if d.is_dir() and not d.name.startswith('.'):
+                # 'projects' フォルダ自体と 'models' は除外
+                if d.name == 'projects' or d.name == 'models':
+                    continue
+                
+                # 'savan-engine' は手動で追加するので除外 (重複防止)
+                if d.name == 'savan-engine':
+                    continue
+                
+                projects.add(d.name)
+
+    # 3. savan-engine自身を追加 (自己デプロイ用)
+    projects.add("savan-engine")
     
-    return projects
+    return sorted(list(projects))
 
 def get_template_list():
     return ["linode-docker-deploy"]
@@ -99,16 +119,19 @@ elif "自動デプロイ設定" in selected_workflow:
     
     projects = get_project_list()
     if not projects:
-        st.error(f"プロジェクトが見つかりません。\n参照先: {PROJECTS_DIR}")
+        st.error(f"プロジェクトが見つかりません。\n参照先: {PROJECTS_DIR} および {ROOT_DIR}")
         st.stop()
         
     target_project = st.selectbox("対象プロジェクトを選択してください:", projects)
     
-    # パス設定 (savan-engineの場合はパスが変わる)
+    # パス設定 (savan-engine または projects/ 以外 (サーバールート) の場合)
     if target_project == "savan-engine":
         repo_dir = ENGINE_DIR
-    else:
+    elif (PROJECTS_DIR / target_project).exists():
         repo_dir = PROJECTS_DIR / target_project
+    else:
+        # projects/ に見つからない場合は、ROOT_DIR 直下と仮定 (サーバ構成)
+        repo_dir = ROOT_DIR / target_project
 
     workflow_dir = repo_dir / ".github" / "workflows"
     workflow_file = workflow_dir / f"deploy_{target_project}.yml"
@@ -154,11 +177,13 @@ gh secret set LINODE_SSH_KEY --body "$key" --repo {repo_name}'''
         st.subheader("CI/CD Pipeline Generation")
         st.markdown(f"自動デプロイ用の設計図 (`{workflow_file.name}`) を生成し、Gitへコミットします。")
         
-        # ポート指定UI (デフォルトを8801に変更)
+        # ポート指定UI
         st.markdown("##### 🔌 Application Port Settings")
-        app_port = st.number_input("Deploy Port (Default: 8501)", min_value=1024, max_value=65535, value=8801, help="Gantt Lineが8501, MatchupAppが8502です。SAVAN UIは8801を推奨します。")
+        # target_project に応じて推奨ポートを変更
+        default_port = 8801 if target_project == 'savan-engine' else 8501
+        app_port = st.number_input("Deploy Port (Default: 8501)", min_value=1024, max_value=65535, value=default_port, help="8501(Gantt), 8502(MatchupApp), 8801(SAVAN UI) など、競合しない番号を指定してください。")
         
-        # パイプライン定義 (起動コマンドを savan_ui.py に特化させる判定を追加)
+        # パイプライン定義
         pipeline_template = f"""name: Deploy {target_project} to Linode (SCP)
 on:
   push:
@@ -223,6 +248,7 @@ jobs:
                 if [ ! -f "$APP_FILE" ]; then
                     if [ -f "{target_project}.py" ]; then APP_FILE="{target_project}.py";
                     elif [ -f "MatchupAppCOST.py" ]; then APP_FILE="MatchupAppCOST.py";
+                    elif [ -f "MatchupApp_PDF_Extractor.py" ]; then APP_FILE="MatchupApp_PDF_Extractor.py"; # 検出ロジック追加
                     elif [ -f "main.py" ]; then APP_FILE="main.py";
                     elif [ -f "app.py" ]; then APP_FILE="app.py"; 
                     else APP_FILE=$(find . -name "*.py" | head -n 1); fi
@@ -250,6 +276,7 @@ jobs:
 
         if st.button("⚙️ Generate & Commit Pipeline"):
             try:
+                # GitHub Actions ワークフローファイル (.yml) を書き込む
                 workflow_dir.mkdir(parents=True, exist_ok=True)
                 with open(workflow_file, "w", encoding="utf-8") as f:
                     f.write(pipeline_template)
@@ -259,21 +286,13 @@ jobs:
                 st.markdown("### 🚀 Final Step: Push to GitHub")
                 st.markdown("以下のコマンドを実行して、設定変更を反映してください。")
                 
-                # savan-engineの場合はパスの扱いを変える
-                if target_project == "savan-engine":
-                    cmd = f"""
-                    cd {repo_dir}
-                    git add .github/workflows/deploy_{target_project}.yml
-                    git commit -m "feat(savan): deploy savan-engine to server on port {app_port}"
-                    git push origin main
-                    """
-                else:
-                    cmd = f"""
-                    cd {repo_dir}
-                    git add .github/workflows/deploy_{target_project}.yml
-                    git commit -m "feat(savan): deploy {target_project} to server on port {app_port}"
-                    git push origin main
-                    """
+                # Gitコマンドを生成
+                cmd = f"""
+                cd {repo_dir}
+                git add .github/workflows/deploy_{target_project}.yml
+                git commit -m "feat(savan): configure auto-deploy for {target_project} on port {app_port}"
+                git push origin main
+                """
                 
                 st.code(cmd, language="bash")
                 
