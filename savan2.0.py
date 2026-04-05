@@ -101,10 +101,39 @@ def execute_instruction(yaml_path):
                 logging.error(f"❌ コマンド実行中にエラーが発生しました: {e}")
                 break # エラー発生時は以降のタスクを中止
 
+# --- Git自動同期機能 ---
+def sync_to_github(commit_message):
+    logging.info(f"【SAVAN Hand】GitHubへの自動同期を開始します (メッセージ: '{commit_message}')")
+    
+    ans = input(f"GitHubへ変更をPushしますか？ [Y/n]: ")
+    if ans.lower() != 'y' and ans != '':
+        logging.warning("同期をスキップしました。")
+        return
+
+    commands = [
+        "git add .",
+        f'git commit -m "{commit_message}"',
+        "git push origin main"
+    ]
+    
+    for cmd in commands:
+        logging.info(f"実行中: {cmd}")
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            if "commit" in cmd:
+                logging.warning("⚠️ コミットする新しい変更がありません。Pushに進みます。")
+            else:
+                logging.error(f"❌ 同期中にエラーが発生しました: {e}")
+                return
+                
+    logging.info("✅ GitHubへの同期が完全に成功しました！")
+
 def main():
     parser = argparse.ArgumentParser(description="SAVAN 2.0 (アバター・アーキテクチャ)")
     parser.add_argument("--scan", dest="scan_dir", type=str, help="指定したディレクトリをスキャンし、Gemini用レポートを作成します。")
     parser.add_argument("--execute", dest="exec_yaml", type=str, help="Geminiが生成したYAML指示書を実行します。")
+    parser.add_argument("--sync", dest="sync_msg", nargs='?', const="Auto-sync by SAVAN 2.0", type=str, help="GitHubへ現在の状態を自動同期(Push)します。任意のコミットメッセージも指定可能。")
     
     args = parser.parse_args()
 
@@ -119,6 +148,8 @@ def main():
         generate_report(args.scan_dir)
     elif args.exec_yaml:
         execute_instruction(args.exec_yaml)
+    elif args.sync_msg is not None:
+        sync_to_github(args.sync_msg)
     else:
         parser.print_help()
 
