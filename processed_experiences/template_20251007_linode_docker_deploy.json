@@ -1,0 +1,50 @@
+{
+  "experience_id": "template_20251007_linode_docker_deploy",
+  "title": "テンプレート：LinodeへのDockerコンテナデプロイ",
+  "summary": "StreamlitアプリケーションをDockerコンテナ化し、GitHub Actions経由でLinodeサーバーに自動デプロイするための、標準的なファイル群（Dockerfile, docker-compose.yml, deploy.yml）を定義したテンプレート。",
+  "knowledge_axis": "abstract",
+  "template_meta": {
+    "template_id": "linode-docker-deploy",
+    "version": "1.0.0",
+    "status": "active",
+    "changelog": "Initial version based on the successful deployment of iina-poc and gantt_line."
+  },
+  "tags": [
+    "template",
+    "docker",
+    "linode",
+    "ci-cd",
+    "github-actions"
+  ],
+  "template_files": [
+    {
+      "file_path": "Dockerfile",
+      "description": "アプリケーションをコンテナ化するための設計図。",
+      "content": "FROM python:3.10-slim\n\nWORKDIR /app\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r requirements.txt\n\nCOPY . /app\n\nEXPOSE 8501\n\nCMD [\"streamlit\", \"run\", \"src/{{app_file_name}}\", \"--server.port=8501\", \"--server.address=0.0.0.0\"]"
+    },
+    {
+      "file_path": "docker-compose.yml",
+      "description": "コンテナを管理・起動するための指示書。",
+      "content": "version: '3.8'\nservices:\n  app:\n    build: .\n    container_name: \"{{project_name}}_app\"\n    restart: always\n    ports:\n      - \"8501:8501\""
+    },
+    {
+      "file_path": ".github/workflows/deploy.yml",
+      "description": "GitHub Actions用の自動デプロイワークフロー。",
+      "content": "name: Deploy {{project_name}} to Linode\n\non:\n  push:\n    branches:\n      - main\n\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n\n    steps:\n      - name: Checkout code\n        uses: actions/checkout@v4\n\n      - name: Copy project files to Linode\n        uses: appleboy/scp-action@master\n        with:\n          host: ${{ secrets.LINODE_HOST }}\n          username: ${{ secrets.LINODE_USERNAME }}\n          key: ${{ secrets.LINODE_SSH_KEY }}\n          source: \".\"\n          target: \"/var/www/{{project_name}}\"\n\n      - name: Restart application with Docker Compose\n        uses: appleboy/ssh-action@master\n        with:\n          host: ${{ secrets.LINODE_HOST }}\n          username: ${{ secrets.LINODE_USERNAME }}\n          key: ${{ secrets.LINODE_SSH_KEY }}\n          script: |\n            cd /var/www/{{project_name}}\n            docker-compose down\n            docker-compose up -d --build"
+    }
+  ],
+  "template_variables": [
+    {
+      "name": "{{app_file_name}}",
+      "description": "実行するメインのPythonファイル名。SAVANがプロジェクトのsrcフォルダ内を調査して自動で特定します。"
+    },
+    {
+      "name": "{{project_name}}",
+      "description": "プロジェクト名。SAVANがリポジトリ名やapp_spec.ymlから自動で特定します。"
+    }
+  ],
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-07T11:55:00Z"
+  }
+}

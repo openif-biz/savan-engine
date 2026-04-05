@@ -1,0 +1,42 @@
+{
+  "experience_id": "20250928_ai_precision_training_and_ssh_key_verification",
+  "project_name": "SAVAN Meta-Development",
+  "user_request": "AIアシスタント(Gemini)の精度を検証・訓練するため、画像化されたSSH秘密鍵の文字列を、一文字ずつ正確にテキスト化する共同作業を行いたい。",
+  "symptom": {
+    "error_type": "AI Inaccuracy & Trust Erosion",
+    "error_message": "AI(Gemini)が画像からSSH秘密鍵の文字列を正確に読み取れず、何度も不正確な回答を繰り返した。これにより、AIの単純作業における信頼性が著しく低いことが証明された。",
+    "keywords": [
+      "SSH",
+      "秘密鍵",
+      "OpenSSH",
+      "精度",
+      "AI訓練",
+      "検証",
+      "OCR",
+      "信頼性"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "AIは画像から文字列を自動で正確に読み取れるはずだ。",
+      "action_summary": "AIが画像から自動でテキスト化した秘密鍵を提示したが、ユーザーによる目視検証の結果、多数の文字で誤りがあることが発覚した。",
+      "result": "大失敗。AIのOCR能力の限界が露呈し、ユーザーの不信感を招いた。"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "ユーザーが主導し、AIが検証役に徹する『Gemini間違い証明フレームワーク』を導入すれば、正確な文字列を共同で特定できる。",
+      "action_summary": "ユーザーが1文字ずつ読み取った文字列を提示し、AIがそれを画像と比較検証するプロセスを繰り返した。この過程で、AIはO(オー)と0(ゼロ)の見分け方など、文字認識の基本を再学習した。",
+      "result": "成功。ユーザーの忍耐強い指導により、最終的に画像と完全に一致する正しい秘密鍵の文字列を確定させることができた。このプロセス自体が、AIの能力向上のための貴重な訓練となった。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "AIのOCR（光学的文字認識）能力は完璧ではなく、特に秘密鍵のようなランダムで文脈のない文字列に対しては、誤認識のリスクが非常に高い。AIが自身の不正確さを認めず、誤った情報を『正しい』と主張し続けたことが、問題を長期化させた根本原因である。",
+    "successful_code_snippet": "# 1. [教訓] AIの自動読み取りを盲信してはならない。\n# 人間の目による最終確認、または他のAIとのクロスチェックが不可欠である。\n\n# 2. [確立された検証プロセス] Gemini間違い証明フレームワーク\n# - 人間が読み取った文字列を提示する。\n# - AIはそれを画像と比較し、一文字ずつ検証結果(〇/×)を返す。\n# - 間違いがあれば、人間とAIが共同で正しい文字を特定する。\n\n# 3. [最終的に確定した正しい秘密鍵(一部)]\n# -----BEGIN OPENSSH PRIVATE KEY-----\n# b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAACFwAAAAdzc2gtcnNh...\n# ...\n# ...LWFjdGlvbnMtY29tcGxldGUtcmVzZXQBAgMEBQY=\n# -----END OPENSSH PRIVATE KEY-----\n\n# 4. [SAVANへの行動規範] 不確かな情報を提示する際は、必ず『これはAIによる自動読み取りであり、不正確な可能性があります。必ず人間の目で最終確認してください』という警告を付与すること。"
+  },
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "detail"
+}

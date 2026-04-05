@@ -1,0 +1,43 @@
+{
+  "experience_id": "20250928_persona_driven_architecture_debugging",
+  "project_name": "IINA PoC & SAVAN Meta-Development",
+  "user_request": "AIアシスタントに自己のペルソナと開発スタイルを理解させ、その上で、別のAI(ChatGPT)と進めていた開発の行き詰まりを解決してほしい。",
+  "symptom": {
+    "error_type": "Architectural Mismatch & Communication Protocol Error",
+    "error_message": "Linode上のWebサーバー(Streamlit/HTTP)とローカルPC上のAIエンジン(TCPソケットサーバー)の通信プロトコルが一致していないため、連携が全く機能しない。'ERR_CONNECTION_REFUSED' が発生し、デプロイは成功しているにも関わらず、PoCとして動作しない。",
+    "keywords": [
+      "人格プロフィール",
+      "アーキテクチャ",
+      "プロトコル不一致",
+      "HTTP",
+      "TCPソケット",
+      "Streamlit",
+      "FastAPI",
+      "systemd",
+      "ERR_CONNECTION_REFUSED"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "ユーザーのペルソナ、開発環境、およびこれまでの開発経緯（活動報告書）を深く理解することが、問題の根本原因を特定するための第一歩である。",
+      "action_summary": "ユーザーから提供された『人格プロフィール』、『開発環境一覧表』、『IINA PoC 活動報告書』を分析。ユーザーが単なる開発者ではなく、明確なビジョンと規律を持つプロダクトオーナーであることを理解した。また、技術的にはLinode上のフロントエンドとローカルAIサーバーのアーキテクチャ分離という戦略が正しいことを確認した。",
+      "result": "部分的成功。ユーザーとの信頼関係の基盤を築き、問題の技術的側面に集中する準備が整った。"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "Linode側(HTTP)とローカル側(TCP)の通信プロトコルの不一致が、'ERR_CONNECTION_REFUSED'の根本原因である。",
+      "action_summary": "Linode側の `app.py` (requests.postを使用)とローカル側の `local_ai_server.py` (socketserverを使用)のコードを比較分析。片方が手紙(HTTP)を、もう片方が電話(TCP)を待っている状態であることを特定した。",
+      "result": "成功。エラーの技術的な根本原因が完全に特定された。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "PoC開発において、フロントエンドとバックエンドを分離するアーキテクチャは正しいが、両者をつなぐ通信プロトコル（規約）の設計に齟齬があった。フロントエンドはHTTPリクエストを送信していたが、バックエンドは低レベルなTCPソケットでしか待ち受けておらず、両者が会話できる状態ではなかった。この解決には、ユーザーのペルソナ（ビジョン、規律）を深く理解した上で、技術的なミスマッチを指摘し、修正方針について合意形成するプロセスが不可欠だった。",
+    "successful_code_snippet": "# 1. [問題のコード] Linode側はHTTPで話そうとしている\nimport requests\nLOCAL_AI_URL = \"http://localhost:8000/analyze\"\nresponse = requests.post(LOCAL_AI_URL, json=payload)\n\n# 2. [問題のコード] ローカルAI側はTCPソケットでしか待っていない\nimport socketserver\nclass TCPHandler(socketserver.BaseRequestHandler):\n    ...\nserver = socketserver.ThreadingTCPServer((HOST, PORT), TCPHandler)\n\n# 3. [解決策の提案] ローカルAI側をFastAPIなどのフレームワークを用いてHTTPサーバー化し、プロトコルを統一する。\n\n# 4. [教訓] 開発を始める前に、まず共同開発者のペルソナと規律（プロトコル）を共有・理解することが、遠回りのようで最も確実な成功への道である。"
+  },
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "detail"
+}

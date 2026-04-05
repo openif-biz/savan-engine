@@ -1,0 +1,96 @@
+{
+  "navigator_name": "StrategicConsultingNavigator",
+  "description": "プロセス思考とメタ思考を統合した戦略ナビゲーション。ユーザー入力に応じた分岐をサポート。",
+  "vertical_axes": [
+    "V_PROCESS",
+    "V_META"
+  ],
+  "horizontal_axes": [
+    "basic_strategy",
+    "market_strategy",
+    "sales_strategy",
+    "tech_strategy",
+    "quality_strategy"
+  ],
+  "knowledge_nodes": [
+    {
+      "id": "V_PROCESS_RESEARCH_H_FUNCTIONAL_MARKET",
+      "step": 1,
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "market_strategy",
+      "description": "市場情報・競合・製品・価格・規制などを調査する。",
+      "next_nodes": [
+        "V_PROCESS_ANALYSIS_H_FUNCTIONAL_MARKET"
+      ]
+    },
+    {
+      "id": "V_PROCESS_ANALYSIS_H_FUNCTIONAL_MARKET",
+      "step": 2,
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "market_strategy",
+      "description": "調査データを分類・分析・SWOT/5FORCE等で評価する。",
+      "next_nodes": [
+        "V_PROCESS_STRATEGY_H_FUNCTIONAL_SALES"
+      ]
+    },
+    {
+      "id": "V_PROCESS_STRATEGY_H_FUNCTIONAL_SALES",
+      "step": 3,
+      "vertical_axis": "V_PROCESS",
+      "horizontal_axis": "sales_strategy",
+      "description": "営業戦略に沿った施策案を立案する。",
+      "next_nodes": [
+        "V_PROCESS_PRIORITY_H_FUNCTIONAL_SALES"
+      ]
+    },
+    {
+      "id": "V_META_PROBLEM_H_BASIC_BUSINESS",
+      "step": 6,
+      "vertical_axis": "V_META",
+      "horizontal_axis": "basic_strategy",
+      "description": "課題を俯瞰的に整理し、ゴール定義を行う。",
+      "next_nodes": [
+        "V_META_STRUCTURAL_H_BASIC_BUSINESS"
+      ]
+    },
+    {
+      "id": "V_META_STRUCTURAL_H_BASIC_BUSINESS",
+      "step": 7,
+      "vertical_axis": "V_META",
+      "horizontal_axis": "basic_strategy",
+      "description": "課題・施策・データの関係を可視化する。",
+      "next_nodes": [
+        "V_META_VALUE_H_BASIC_BUSINESS",
+        "V_META_STRATEGY_H_BASIC_BUSINESS"
+      ],
+      "branching_rules": {
+        "user_input": {
+          "価値": "V_META_VALUE_H_BASIC_BUSINESS",
+          "戦略": "V_META_STRATEGY_H_BASIC_BUSINESS"
+        },
+        "default": "V_META_VALUE_H_BASIC_BUSINESS"
+      }
+    },
+    {
+      "id": "V_META_VALUE_H_BASIC_BUSINESS",
+      "step": 8,
+      "vertical_axis": "V_META",
+      "horizontal_axis": "basic_strategy",
+      "description": "価値ストーリーを整理し、サクセス/ホラーシナリオを作成する。",
+      "next_nodes": []
+    },
+    {
+      "id": "V_META_STRATEGY_H_BASIC_BUSINESS",
+      "step": 9,
+      "vertical_axis": "V_META",
+      "horizontal_axis": "basic_strategy",
+      "description": "戦略施策を抽象化・優先順位付けし、実行計画の骨子を作る。",
+      "next_nodes": []
+    }
+  ],
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "detail"
+}

@@ -1,0 +1,55 @@
+{
+  "experience_id": "20250928_distributed_architecture_setup",
+  "project_name": "IINA PoC (Linode-Local Hybrid)",
+  "user_request": "クラウドサーバー(Linode)上のWeb UIと、ローカルPC上のAIエンジンを、ngrok経由でリアルタイムに連携させたい。",
+  "symptom": {
+    "error_type": "Architectural Mismatch & Environment Setup Failure",
+    "error_message": "Linode上のUIからローカルAIを呼び出そうとしても 'ERR_CONNECTION_REFUSED' が発生し、通信が全く成立しない。また、ローカルAIサーバーの起動時に 'SyntaxError' や 'FileNotFoundError' が発生し、環境構築自体も困難を極めた。",
+    "keywords": [
+      "アーキテクチャ",
+      "ngrok",
+      "Linode",
+      "ローカルPC",
+      "FastAPI",
+      "Streamlit",
+      "venv",
+      "PowerShell",
+      "ExecutionPolicy"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "Linode側(HTTP通信)とローカル側(TCPソケット通信)で、通信の『お作法』（プロトコル）が異なっていることが、通信失敗の根本原因である。",
+      "action_summary": "両者のソースコードを比較分析。Linode側がWebサイトにアクセスするのと同じHTTP方式で接続しようとしているのに対し、ローカル側はより原始的なTCPソケット方式で待ち受けているという、致命的な設計の不整合を特定した。",
+      "result": "成功（根本原因の特定）"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "ローカルAIサーバーを、FastAPIという標準的なWebフレームワークを使ってHTTP対応のAPIサーバーに改造すれば、Linode側と通信のお作法が統一され、連携が可能になる。",
+      "action_summary": "ローカルAIサーバーのコード(local_iina.py)を、HTTP POSTリクエストを受け付けるFastAPIアプリケーションに完全に書き換える修正案を提示し、承認された。",
+      "result": "成功（正しいアーキテクチャの確立）"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "新しいアーキテクチャをローカルPCで動かすには、Pythonの仮想環境(venv)を正しく設定し、必要なライブラリ(fastapi, uvicorn等)を正確にインストールする必要がある。",
+      "action_summary": "PowerShellのスクリプト実行ポリシー(ExecutionPolicy)に阻まれながらも、'Set-ExecutionPolicy'コマンドで一時的に制限を解除。その後、'venv'の有効化、'pip install -r requirements.txt'によるライブラリ導入を順に実行し、クリーンな開発環境を構築した。",
+      "result": "成功（ローカル実行環境の確立）"
+    },
+    {
+      "attempt_id": 4,
+      "hypothesis": "ローカルAIサーバーの起動エラー(SyntaxError, FileNotFoundError)は、ファイル名の不一致や、修正前の古いコードが残っていることが原因である。",
+      "action_summary": "lsコマンドで正しいファイル名(local_iina.py)を特定。SyntaxErrorについては、修正済みの完全なコードでファイルを上書きすることで解決した。",
+      "result": "大成功。これにより、Linode上のWeb UI、ngrokトンネル、ローカルPC上のAIサーバーという、3つのコンポーネントが完璧に連携して動作する、分散アーキテクチャのPoCが完成した。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "クラウドとローカルPCを連携させる分散アーキテクチャの成否は、個々のプログラムの品質だけでなく、それらをつなぐ『通信プロトコル』と、プログラムを動かす『実行環境』の厳密な一致にかかっている。特に、PowerShellの実行ポリシーのようなOSレベルのセキュリティ設定は、見落とされがちな障壁となる。",
+    "successful_code_snippet": "# 1. ローカルAIサーバーをHTTP化するためのFastAPIコードの骨格\nfrom fastapi import FastAPI, Request\nfrom pydantic import BaseModel\nimport uvicorn\n\napp = FastAPI()\n\nclass InputPayload(BaseModel):\n    text: str\n\n@app.post(\"/analyze\")\nasync def analyze(payload: InputPayload):\n    # ... (AI分析ロジック) ...\n    return {\"summary\": \"...\", \"flow\": [...]}\n\nif __name__ == \"__main__\":\n    uvicorn.run(\"local_iina:app\", host=\"127.0.0.1\", port=8501)\n\n# 2. ローカル環境をセットアップするための一連のコマンド\n# (PowerShellの場合)\ncd C:\\path\\to\\project\nSet-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process\n.\\venv\\Scripts\\activate\npip install -r requirements.txt\n\n# 3. 連携を確立するための2つのサーバー起動コマンド\n# ターミナル1 (ローカルPC)\npython local_iina.py\n\n# ターミナル2 (ローカルPC)\nngrok http 8501\n\n# ターミナル3 (Linodeサーバー)\nstreamlit run linode_frontend.py"
+  },
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "detail"
+}

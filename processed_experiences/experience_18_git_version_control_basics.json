@@ -1,0 +1,36 @@
+{
+  "experience_id": "20250928_git_version_control_basics",
+  "project_name": "SAVAN Meta-Development",
+  "user_request": "GitHubを使ったバージョン管理の基本的なやり方を教えてほしい。",
+  "symptom": {
+    "error_type": "Knowledge Gap",
+    "error_message": "GitとGitHubの基本的なワークフロー（リポジトリ、クローン、add、commit、push）に関する知識が不足しており、コードの変更履歴を管理する方法が分からない状態。",
+    "keywords": [
+      "Git",
+      "GitHub",
+      "バージョン管理",
+      "リポジトリ",
+      "clone",
+      "add",
+      "commit",
+      "push"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "Gitの基本的な4ステップ（リポジトリ作成→クローン→コミット→プッシュ）を順を追って説明すれば、初心者でも全体像を理解できる。",
+      "action_summary": "1. リポジトリ作成（保管場所の確保）、2. ローカル準備（git clone）、3. 変更の記録（git add & git commit）、4. GitHubへの反映（git push）という4つのステップに分け、それぞれの目的と基本コマンドを平易な言葉で解説した。",
+      "result": "成功。バージョン管理の基本的な概念と一連の作業フローが確立された。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "コードの変更履歴を効果的に管理できなかった根本原因は、Gitの基本的なワークフローに関する知識が不足していたことにある。ソフトウェア開発、特にCI/CDを伴う自動化プロジェクトにおいて、バージョン管理は全ての基本となる必須スキルである。",
+    "successful_code_snippet": "# Gitバージョン管理の基本4ステップ\n\n# ステップ1: GitHub上で新しいリポジトリを作成する（Web UI操作）\n\n# ステップ2: 作成したリポジトリをローカルPCにコピーする\n# 解説: GitHub上の設計図を、自分の作業場に持ってくるイメージ。\ngit clone [リポジトリのURL]\n\n# ステップ3: ファイルを編集した後、変更内容を記録する\n# 解説: まず、どのファイルを記録対象にするか選び(add)、次に変更内容のメモと共に記録を確定させる(commit)。\ngit add .\ngit commit -m \"変更内容を簡潔に説明するメッセージ\"\n\n# ステップ4: ローカルPCの記録をGitHubに送信する\n# 解説: 自分の作業場での記録を、GitHub上の中央保管庫に送って共有するイメージ。\ngit push origin main"
+  },
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "detail"
+}

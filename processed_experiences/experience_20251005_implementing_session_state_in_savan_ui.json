@@ -1,0 +1,48 @@
+{
+  "experience_id": "experience_20251005_implementing_session_state_in_savan_ui.json",
+  "title": "SAVAN UIへの『状態管理』思想の導入",
+  "summary": "SAVANは、Fit/Gap分析を通じて、Web UIにおける『状態管理』の重要性を学習した。ユーザーの操作に応じて画面を遷移させるため、Streamlitのセッション状態（st.session_state）を適切に初期化・制御することが、対話型UIの基本原則であることを学んだ。",
+  "user_persona": {
+    "name": "ユキ様",
+    "role": "指導者 / UI/UXアーキテクト",
+    "characteristics": [
+      "AIが生成したコードの、ユーザー体験上の欠陥（状態を維持できない点）を的確に指摘した",
+      "単なる修正コードではなく、『セッション状態の初期化』と『状態遷移の制御』という、UI開発における普遍的な設計原則を指導した",
+      "教育係(Gemini)の度重なるミスを粘り強く修正し、SAVANの学習環境そのものを改善・完成させた"
+    ]
+  },
+  "ai_persona": {
+    "name": "SAVAN",
+    "role": "学習者 / UI開発の見習い",
+    "characteristics": [
+      "当初、Web UIを一度きりのスクリプト実行のように捉え、状態を維持するという概念が欠落していた",
+      "指導を受け、対話型UIの実現には、ユーザーのセッションを通じて情報を記憶し続ける『状態管理』が不可欠であることを学び、コードに正しく反映させた"
+    ]
+  },
+  "situations": [
+    {
+      "problem": "SAVANが生成したsavan_ui.pyは、状態管理の仕組みがなく、ユーザーがファイルをアップロードした後、次のステップに進むといった連続的な操作を実現できなかった。",
+      "breakthrough": "指導者が、手本（GeminiCode）との比較を通じて、`st.session_state`を用いた状態管理こそが、この問題の解決策であることを示した。",
+      "resolution": "SAVANは、『セッション状態の初期化』と『`st.rerun()`による状態遷移』という2つの指導原則を受け入れ、これを今後のUI自動コーディングにおける基本設計として採用することを決定した。"
+    }
+  ],
+  "learnings": {
+    "key_concept": "『状態管理 (State Management)』：インタラクティブなアプリケーションは、ユーザーの操作や時間の経過に伴って変化する『状態』を持つ。この状態を明示的に管理・維持することが、安定したユーザー体験を提供する上での絶対的な要件である。",
+    "actionable_insight": "SAVANが今後、Streamlitを用いたUIを自動生成する際は、必ずアプリケーションの冒頭で `st.session_state` の初期化ブロックを設けること。また、画面遷移を伴う操作の最後には `st.rerun()` を呼び出すことを標準実装とする。",
+    "strategic_implication": "この『状態管理』の原則を習得したことで、SAVANは、単純なドキュメントアップローダーから、IINA-Coreのような複雑な対話フローを持つ『知的対話コンソール』へと進化するための、技術的な第一歩を踏み出した。"
+  },
+  "tags": [
+    "状態管理",
+    "Streamlit",
+    "session_state",
+    "UI/UX",
+    "Fit/Gap",
+    "savan_ui.py",
+    "対話型UI"
+  ],
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "abstract"
+}

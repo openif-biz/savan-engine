@@ -1,0 +1,86 @@
+{
+  "project_info": {
+    "project_name": "Pipeline-Master",
+    "version": "1.0.0-PoC",
+    "owner": "ユキ",
+    "concept": "ExcelからのCSVポン投げで完結する中小企業向けパイプライン管理SaaS。人間の曖昧な自然言語検索から、システムが動的に最適な集計テンプレートとダッシュボードを生成するAIネイティブBI機能を搭載。",
+    "target_users": [
+      "経営者",
+      "営業マネージャー",
+      "営業担当者"
+    ]
+  },
+  "architecture": {
+    "frontend": "Streamlit",
+    "backend": "Python 3, Pandas",
+    "deployment": {
+      "server_ip": "172.237.4.248",
+      "port": 8504,
+      "main_executable": "Pipeline-Master.py",
+      "deploy_method": "Strong Deploy (fuser -k によるポート強制解放と screen/nohup による永続化)"
+    }
+  },
+  "core_features": [
+    {
+      "feature": "CSVインポート及びデータクレンジング",
+      "description": "空白除去およびNFKC正規化による全角・半角の揺らぎ吸収ロジックを実装。"
+    },
+    {
+      "feature": "月次リードタイム自動計算",
+      "description": "D(面談)を起点とし、C(+1ヶ月), B(+2ヶ月), A(+3ヶ月), 納品(+4ヶ月), 入金(+5ヶ月)として自動予測。"
+    },
+    {
+      "feature": "AIスマートアナリスト (動的ダッシュボード)",
+      "description": "エリア/確度/担当などの曖昧な組み合わせ検索に対し、システムが動的にピボットテーブルとグラフのテンプレートを生成し表示する。"
+    },
+    {
+      "feature": "Gantt Line連携",
+      "description": "確度A（契約済）の案件を抽出し、Gantt Line読み込み用のCSVとして出力する。"
+    }
+  ],
+  "data_schema": {
+    "parameters": [
+      "案件ID",
+      "案件名",
+      "顧客名",
+      "新規_既存",
+      "業種",
+      "エリア",
+      "担当者",
+      "初期売上",
+      "初期粗利",
+      "月額保守売上",
+      "月額保守粗利",
+      "現在の確度",
+      "D_面談日",
+      "C_提案日",
+      "B_内示日",
+      "A_契約日",
+      "納品",
+      "請求",
+      "入金予定日"
+    ]
+  },
+  "troubleshooting_knowledge": [
+    {
+      "issue": "GitHubデプロイ時の認証エラー (Invalid username or token)",
+      "cause": "PCローカルのGit資格情報(Personal Access Token)の有効期限切れまたは不整合。",
+      "solution": "GitHubで新しいトークンを発行し、ターミナルで `git push` 実行時に表示されるデバイス認証画面から新しいトークンを入力して更新する。"
+    },
+    {
+      "issue": "デプロイ直後の接続拒否 (ERR_CONNECTION_REFUSED)",
+      "cause": "旧プロセスがポートを占有しているゾンビプロセス化、または同名ファイル(`app.py`)の混在によるシステムの混乱。",
+      "solution": "メインファイル名を `Pipeline-Master.py` のように一意にし、起動前に `fuser -k 8504/tcp` で確実にポートを掃除する。"
+    },
+    {
+      "issue": "AttributeError: The '.style' accessor requires jinja2",
+      "cause": "サーバー環境におけるPandas装飾用ライブラリ(Jinja2)の欠如またはバージョン不整合。",
+      "solution": "サーバー上で `pip3 install --upgrade Jinja2` を実行する。"
+    }
+  ],
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2026-03-21T11:16:04Z"
+  },
+  "knowledge_axis": "detail"
+}

@@ -1,0 +1,50 @@
+{
+  "experience_id": "20250928_gcp_iap_and_oauth_truth",
+  "project_name": "Gantt Line with Google Auth",
+  "user_request": "Gantt LineにGoogle認証(OAuth 2.0)を実装し、ローカル開発環境(localhost:8501)でテスト可能にしたい。全てのGCP設定はWebコンソール(GUI)ではなくCloud Shell(コマンドライン)で行うことを原則とする。",
+  "symptom": {
+    "error_type": "OAuth Handshake Error",
+    "error_message": "ローカルでのテスト実行時、Google認証画面で 'エラー 400: redirect_uri_mismatch' が発生する。アプリが提示したリダイレクトURI(http://localhost:8501)が、GCPのOAuthクライアントIDに登録されていない。しかし、GUIでは編集がブロックされ、API経由での更新も404エラーで失敗し、完全に手詰まりの状態に陥った。",
+    "keywords": [
+      "OAuth",
+      "redirect_uri_mismatch",
+      "400",
+      "IAP",
+      "gcloud iap oauth-clients",
+      "Cloud Shell",
+      "GUI",
+      "API",
+      "404",
+      "サービスアカウント"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "gcloud iap oauth-clientsコマンドで作成したクライアントIDは、IAPのREST APIをcurlで直接叩けば更新できるはずだ。",
+      "action_summary": "IAPのAPIエンドポイントと思われるURLに対して、curlコマンドでPATCHリクエストを送信し、redirectUrisの更新を試みた。",
+      "result": "失敗。404 Not Foundエラーが返された。これは、IAPクライアントを更新するための公開APIエンドポイントが存在しない、という厳しい現実を示していた。"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "問題の根本原因は、gcloud iap oauth-clients createというコマンドの選択自体が誤りであったことにある。このコマンドは、編集不可能な特殊なクライアントIDを生成してしまう。",
+      "action_summary": "複数のAIアシスタントに助言を求め、多角的な分析を実施。その結果、このコマンドで作成されるクライアントIDはIAPの内部プロキシフロー専用であり、localhostのような任意のURIを登録する用途には設計されていない、という『GCPの隠れた真実』にたどり着いた。",
+      "result": "成功（根本原因の特定）"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "この膠着状態を打開する唯一の方法は、コマンドラインのみという規律に一度だけ戦略的な例外を設け、GUI（Webコンソール）で、編集可能な標準の『ウェブアプリケーション』用クライアントIDを新規作成することである。",
+      "action_summary": "プロジェクトの成功を最優先し、プロトコルの例外を適用。GUIで警告アイコンの付かない正常なクライアントIDを手動で作成し、クライアントIDとシークレットを取得した。",
+      "result": "大成功。この決断により、数日間にわたる手詰まり状態が完全に解消され、プロジェクトは次のステージに進むことができた。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "GCPの認証システムには、ドキュメントからは読み取りにくい『真実のルール』が存在する。gcloud iap oauth-clientsコマンドは、ローカルテストに必要なリダイレクトURIを追加できない特殊なクライアントを生成するため、このユースケースでは使うべきではなかった。高速なAI開発とは、時に自らが定めた規律（コマンド至上主義）に固執するのではなく、複数の情報源から得た助言を元に、最も合理的で確実な手段（今回であれば一度きりのGUI操作）を選択する、戦略的な柔軟性そのものである。",
+    "successful_code_snippet": "# 1. [教訓] 'gcloud iap oauth-clients create' はローカルテスト用のredirect_uriを登録できないため、この目的には使用しない。\n\n# 2. [最終手段] GUI（Webコンソール）で「ウェブアプリケーション」タイプのOAuthクライアントを一度だけ手動で作成し、'http://localhost:8501' を承認済みリダイレクトURIとして登録する。\n\n# 3. [自動化への道] GUIで取得したクライアントIDとシークレットを、GitHub Secretsに登録する。\n# ローカルPCのPowerShellから実行\ngh secret set GCP_CLIENT_ID --body \"YOUR_CLIENT_ID\"\ngh secret set GCP_CLIENT_SECRET --body \"YOUR_CLIENT_SECRET\"\n\n# 4. [最終目的] IAPが有効化されたバックエンドサービスに、作成したクライアントIDを紐付けてデプロイを完成させる。\n# deploy-gcp.yml の gcloud run deploy コマンドに追加\n--set-env-vars=\"GCP_CLIENT_ID=${{ secrets.GCP_CLIENT_ID }},GCP_CLIENT_SECRET=${{ secrets.GCP_CLIENT_SECRET }}\""
+  },
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "detail"
+}

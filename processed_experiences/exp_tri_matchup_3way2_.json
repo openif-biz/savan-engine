@@ -1,0 +1,29 @@
+{
+  "experience_id": "exp_tri_matchup_3way_20240319",
+  "title": "非構造データ3種（UP・開通・CRM）の7段構えハイブリッド突合とスマート検証の実装",
+  "summary": "表記揺れが激しく、商談No等の共通キーが欠落した3つのリストを、住所・物件名の多段クレンジングと、枝番コンフリクト判定を組み合わせたロジックで高精度に統合。AIに全任せせず、疑わしい箇所を色付けして人間に判断させる『スマート検証』により、実務上の安全性を担保した事例。",
+  "content": "当初、住所や建物名の表記揺れにより突合率が低迷。正規表現による住所クレンジング（町名＋数字抽出）を導入したが、今度は同名物件の誤突合（A棟にB棟が混ざる等）が発生。これに対し、1.末尾枝番の抽出、2.枝番が異なる場合は不一致とする『アンチパターン』を実装。さらに、UPから直接探せない場合はGENIEEを介して開通通知を探す『ブリッジ機能』により救済率を向上させた。最終的に、システムが100%正解を出そうとせず、リスクを可視化して人間と協調するUIに落とし込んだ。",
+  "knowledge_axis": "detail",
+  "tags": [
+    "DataCleaning",
+    "HybridMatching",
+    "Human-in-the-loop",
+    "GAS",
+    "MasterDataManagement"
+  ],
+  "proposed_meta": {
+    "priority": "High",
+    "domain": "Operation Automation"
+  },
+  "approved_meta": {
+    "status": "Approved",
+    "reviewer": "Yuki",
+    "category": "Advanced Logic Design"
+  },
+  "machine_tags": {
+    "schema_version": "1.0",
+    "content_type": "logic_pattern",
+    "language": "javascript",
+    "target_component": "MatchingEngine"
+  }
+}

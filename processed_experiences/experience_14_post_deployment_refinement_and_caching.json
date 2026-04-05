@@ -1,0 +1,47 @@
+{
+  "experience_id": "20250928_post_deployment_refinement_and_caching",
+  "project_name": "Gantt Line",
+  "user_request": "デプロイ済みのGantt Lineに対し、v7.0のバージョンタグを正しく付けたい。また、よりリアルなデモデータを作成し、UIの不具合（フィルターが更新されない、データが正しく絞り込まれない）を修正したい。",
+  "symptom": {
+    "error_type": "Post-Deployment Bug & Feature Enhancement",
+    "error_message": "git push --tagsでv7.0タグが拒否される。新しいExcelデータをアップロードしても、支店フィルターの選択肢が更新されない。月次分析で、選択した契約月以外の案件がタイムラインに表示されてしまう。",
+    "keywords": [
+      "git tag",
+      "キャッシュ",
+      "st.cache_data",
+      "データフィルタリング",
+      "stale data",
+      "UI bug",
+      "バージョン管理"
+    ]
+  },
+  "debugging_history": [
+    {
+      "attempt_id": 1,
+      "hypothesis": "Gitのタグ情報がローカルとリモートで競合しているため、pushが拒否されている。",
+      "action_summary": "ローカルとリモートの不完全なv7.0タグを両方削除('git tag -d', 'git push --delete origin')してから、再度ローカルでタグを付け直し、pushすることで解決した。",
+      "result": "成功"
+    },
+    {
+      "attempt_id": 2,
+      "hypothesis": "支店フィルターが更新されないのは、Streamlitのキャッシュ機能(@st.cache_data)が、新しいファイルがアップロードされたことを検知できず、古いデータを使い回しているためである。",
+      "action_summary": "ファイルが更新されたことを検知するロジックを追加し、そのタイミングで 'st.cache_data.clear()' と 'st.rerun()' を実行することで、キャッシュを強制的にクリアし、画面をリフレッシュするように修正した。",
+      "result": "成功"
+    },
+    {
+      "attempt_id": 3,
+      "hypothesis": "月次分析でデータが絞りきれないのは、フィルターのロジックが単純すぎて、複数の条件（エリア、担当者、契約月）が互いに干渉し、矛盾を引き起こしているためである。",
+      "action_summary": "ユーザーからの『担当エリアの拘束を一度解き、担当営業と契約月だけで絞り込む』という核心的な助言に基づき、ロジックを全面的に再設計。①まずエリアで絞り、②次にその中から担当者と契約月で対象案件リストを確定し、③最後に確定した案件リストで元のデータを再度絞り込む、という多段階の分離されたフィルタリング処理を実装した。",
+      "result": "大成功。これにより、複雑な条件下でも意図通りにデータが絞り込まれる、堅牢な分析機能が完成した。"
+    }
+  ],
+  "final_solution": {
+    "root_cause": "Webアプリケーション開発では、パフォーマンス向上のためのキャッシュ機能が、データの更新時に『古い情報を表示し続ける』という重大なバグの原因になりうる。また、複数の条件が絡み合う高度なフィルタリング機能は、単純なロジックの組み合わせでは破綻しやすく、各条件をどの順番で、どのデータセットに適用するかを厳密に制御する、多段階のアーキテクチャが必要となる。",
+    "successful_code_snippet": "# 1. Gitタグの競合を解決するコマンドシーケンス\ngit tag -d v7.0\ngit push --delete origin v7.0\ngit tag v7.0\ngit push origin v7.0\n\n# 2. ファイル更新時にキャッシュをクリアするロジック\nif uploaded_file.name != st.session_state.get(\"previous_filename\"):\n    st.cache_data.clear()\n    # ... (データ読込処理) ...\n    st.rerun()\n\n# 3. 複雑なフィルターを解決する多段階ロジック（monthly_callback関数）\n# ステップ1: エリアで絞ったベースのDataFrameを作成\narea_df = st.session_state.area_filtered_df\n\n# ステップ2: ベースDFから、担当者と契約月で『案件名リスト』だけを作成\ncontracts_only_df = rep_filtered_df[rep_filtered_df['タスク'] == '契約']\ncontracts_in_month_df = contracts_only_df[ (contracts_only_df['日付'] >= start_of_month) & (contracts_only_df['日付'] <= end_of_month) ]\ntarget_project_names = contracts_in_month_df['案件名'].unique()\n\n# ステップ3: 確定した案件名リストを使い、ベースDFから最終的な表示データを抽出\ndisplay_df_monthly = rep_filtered_df[rep_filtered_df['案件名'].isin(target_project_names)]"
+  },
+  "approved_meta": {
+    "approved_by": "auto_approve_script",
+    "approved_at": "2025-10-06T13:36:44Z"
+  },
+  "knowledge_axis": "detail"
+}
