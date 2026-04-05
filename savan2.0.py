@@ -1,0 +1,126 @@
+import sys
+import os
+import subprocess
+import yaml
+import argparse
+import logging
+from pathlib import Path
+
+# --- ロギング設定 ---
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# --- SAVAN Eye (環境スキャン機能) ---
+def generate_report(target_dir):
+    logging.info(f"【SAVAN Eye】ディレクトリのスキャンを開始します: {target_dir}")
+    if not os.path.exists(target_dir):
+        logging.error("指定されたディレクトリが存在しません。")
+        return
+
+    ignore_dirs = {'.git', 'node_modules', '.venv', '__pycache__', 'build', 'dist', 'env_savan311', 'env_savan'}
+    report_content = f"### SAVAN Environment Report ###\nTarget: {target_dir}\n\n"
+
+    # 1. ツリー構造の取得
+    report_content += "--- Directory Structure ---\n"
+    for root, dirs, files in os.walk(target_dir):
+        dirs[:] = [d for d in dirs if d not in ignore_dirs] # 無視リストを除外
+        level = root.replace(target_dir, '').count(os.sep)
+        indent = ' ' * 4 * level
+        report_content += f"{indent}{os.path.basename(root)}/\n"
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            report_content += f"{subindent}{f}\n"
+
+    # 2. 重要ファイルの内容抽出 (package.jsonなど)
+    important_files = ['package.json', 'firebase.json', 'app_spec.yml']
+    report_content += "\n--- Key Configuration Files ---\n"
+    for file_name in important_files:
+        file_path = os.path.join(target_dir, file_name)
+        if os.path.exists(file_path):
+            report_content += f"\n[{file_name}]\n"
+            with open(file_path, 'r', encoding='utf-8') as f:
+                report_content += f.read() + "\n"
+
+    # レポート出力 (専用のreportsフォルダを作成して格納)
+    reports_dir = os.path.join(target_dir, 'reports')
+    os.makedirs(reports_dir, exist_ok=True)
+    report_path = os.path.join(reports_dir, 'savan_report.txt')
+    
+    with open(report_path, 'w', encoding='utf-8') as f:
+        f.write(report_content)
+    
+    logging.info(f"スキャン完了。レポートを出力しました: {report_path}")
+    logging.info("※このテキストファイルの中身をコピーして、Geminiに渡してください。")
+
+# --- SAVAN Hand & Launcher (自動実行・デプロイ機能) ---
+def execute_instruction(yaml_path):
+    logging.info(f"【SAVAN Hand】実行指示書を読み込んでいます: {yaml_path}")
+    if not os.path.exists(yaml_path):
+        logging.error("指示書(YAML)が見つかりません。")
+        return
+
+    with open(yaml_path, 'r', encoding='utf-8') as f:
+        instruction = yaml.safe_load(f)
+
+    logging.info(f"ミッション: {instruction.get('description', 'No description')}")
+    
+    for idx, task in enumerate(instruction.get('tasks', [])):
+        logging.info(f"\n--- Task {idx+1}/{len(instruction['tasks'])}: {task.get('type')} ---")
+        
+        # ファイル更新・作成タスク
+        if task['type'] in ['file_update', 'file_create']:
+            target_file = os.path.abspath(task['target'])
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+            
+            logging.info(f"対象ファイル: {target_file}")
+            # 安全装置：上書き確認
+            if os.path.exists(target_file) and task.get('action') == 'overwrite':
+                ans = input(f"警告: {task['target']} を上書きします。よろしいですか？ [Y/n]: ")
+                if ans.lower() != 'y' and ans != '':
+                    logging.warning("スキップしました。")
+                    continue
+            
+            with open(target_file, 'w', encoding='utf-8') as f:
+                f.write(task['content'])
+            logging.info("✅ ファイルの書き込みが完了しました。")
+
+        # コマンド実行タスク (デプロイ含む)
+        elif task['type'] == 'command':
+            cmd = task['execute']
+            logging.info(f"実行コマンド: {cmd} ({task.get('description', '')})")
+            
+            if task.get('require_approval', True):
+                ans = input(f"コマンドを実行しますか？ [Y/n]: ")
+                if ans.lower() != 'y' and ans != '':
+                    logging.warning("スキップしました。")
+                    continue
+            
+            try:
+                subprocess.run(cmd, shell=True, check=True)
+                logging.info("✅ コマンドの実行に成功しました。")
+            except subprocess.CalledProcessError as e:
+                logging.error(f"❌ コマンド実行中にエラーが発生しました: {e}")
+                break # エラー発生時は以降のタスクを中止
+
+def main():
+    parser = argparse.ArgumentParser(description="SAVAN 2.0 (アバター・アーキテクチャ)")
+    parser.add_argument("--scan", dest="scan_dir", type=str, help="指定したディレクトリをスキャンし、Gemini用レポートを作成します。")
+    parser.add_argument("--execute", dest="exec_yaml", type=str, help="Geminiが生成したYAML指示書を実行します。")
+    
+    args = parser.parse_args()
+
+    # yamlモジュールの存在チェック
+    try:
+        import yaml
+    except ImportError:
+        logging.error("PyYAMLがインストールされていません。'pip install pyyaml' を実行してください。")
+        sys.exit(1)
+
+    if args.scan_dir:
+        generate_report(args.scan_dir)
+    elif args.exec_yaml:
+        execute_instruction(args.exec_yaml)
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()

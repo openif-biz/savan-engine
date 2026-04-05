@@ -1,0 +1,62 @@
+[
+  {
+    "experience_id": "exp_ai_hybrid_architecture_001",
+    "title": "ルールベースとLLM APIによるハイブリッド・アーキテクチャの構築",
+    "summary": "AIのハルシネーション（幻覚）リスクとAPI利用コストを最小化するため、確実な処理はルールベースで行い、複雑な例外処理のみをLLMに委ねるハイブリッド構成を定義した。",
+    "content": "「すべての処理をAIに任せる」アプローチは、実行時間の遅延とコスト増、そして100%の確実性が担保できないという弱点を持つ。最適解として、完全一致などの論理的に証明可能な条件（全体の9割）は、コスト0円・精度100%のルールベースプログラム（GAS等）で瞬時に処理する。そして、ルールでは弾かれてしまう「意味合いを汲み取る必要がある複雑な表記揺れ」のみをLLM API（Gemini等）に送信し、推論させる。事前にルールベースのロジックを極限まで磨き上げることは、結果的に「AIに無駄な仕事をさせないための最強の土台作り」となる。",
+    "proposed_meta": {
+      "knowledge_axis": "detail",
+      "tags": ["ハイブリッド構成", "LLM API", "コスト削減", "ルールベース", "ハルシネーション対策"]
+    },
+    "approved_meta": {
+      "knowledge_axis": "abstract",
+      "tags": ["アーキテクチャ設計", "AIインテグレーション", "リソース最適化", "ハイブリッド推論", "セマンティック処理"],
+      "machine_tags": {
+        "schema_version": "1.0",
+        "content_type": "architecture_pattern",
+        "language": "python",
+        "target_component": "savan.py"
+      }
+    }
+  },
+  {
+    "experience_id": "exp_ai_human_error_failsafe_002",
+    "title": "「人間のミス」を前提としたHITLとフェイルセーフ機構の実装",
+    "summary": "データ入力時の人間のミスをLLMで吸収しつつ、最終承認を行う人間の「目視確認ミス」をもリカバリー可能な、安全なHuman-in-the-Loop (HITL) 設計を確立した。",
+    "content": "システムは常に「人間は沢山のミスをする」という前提で設計されなければならない。「グランエッグス目黒E」と「グランエッグスｲｰスト」のような入力ミスやタイポは、LLMの持つ高度なセマンティック（意味理解）能力によって柔軟に吸収する。さらに、AIが推論した惜しい候補に対して、人間が最終判断（〇付け等）を行うHuman-in-the-Loopを採用するが、その「人間の目視判断」自体にも誤りが含まれるリスクを想定する。そのため、一度手動で結合したデータであっても、いつでも一覧から確認し、簡単にチェックを外して元の状態へ復元できる「フェイルセーフ（安全装置）」をシステムに組み込むことで、運用上の心理的安全性を完全に担保した。",
+    "proposed_meta": {
+      "knowledge_axis": "detail",
+      "tags": ["ヒューマンエラー", "フェイルセーフ", "Human-in-the-Loop", "目視検証", "手動結合"]
+    },
+    "approved_meta": {
+      "knowledge_axis": "abstract",
+      "tags": ["システム安全設計", "HITL", "フールプルーフ", "フェイルセーフ", "運用ガバナンス"],
+      "machine_tags": {
+        "schema_version": "1.0",
+        "content_type": "design_principle",
+        "language": "python",
+        "target_component": "knowledge_manager.py"
+      }
+    }
+  },
+  {
+    "experience_id": "exp_ai_model_selection_003",
+    "title": "タスク性質に基づくAI実装アプローチの最適選定原則",
+    "summary": "プロジェクトの要件に応じ、「LLM API活用」「自社製LLM開発」「特化型モデル利用」の3つのAIアプローチを使い分ける戦略的判断基準を定義した。",
+    "content": "実務におけるAI導入では、目的とコストに見合ったモデル選定が不可欠である。①LLM API（Gemini等）は、高度な意味理解と汎用的な推論力を持ち、日々の業務オペレーションにおいて「柔軟な判断を下す脳」として最適である。②特化型モデル（DeepSeek等）は、コード生成や特定タスクを代行する「専門技能（エージェント開発支援など）」には優れるが、日常的なデータ処理の実行役としては汎用APIに劣る。③自社製LLMのスクラッチ開発は、膨大な計算資源とコストを要するため、「絶対に外部通信が許されない機密データ環境」などの特殊な制約がない限り、費用対効果が合わずオーバースペックとなる。要件定義段階でこれらの特性を見極めることがプロジェクト成功の鍵となる。",
+    "proposed_meta": {
+      "knowledge_axis": "detail",
+      "tags": ["モデル選定", "LLM API", "特化型モデル", "自社開発LLM", "技術要件"]
+    },
+    "approved_meta": {
+      "knowledge_axis": "abstract",
+      "tags": ["AI戦略", "テクノロジー選定", "プロジェクトマネジメント", "ROI最適化", "コンサルティング"],
+      "machine_tags": {
+        "schema_version": "1.0",
+        "content_type": "strategy_guideline",
+        "language": "markdown",
+        "target_component": "savan.py"
+      }
+    }
+  }
+]

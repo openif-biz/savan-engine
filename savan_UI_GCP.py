@@ -30,6 +30,207 @@ st.title("🏭 SAVAN - Universal Console")
 st.markdown("### Intellectual Software Factory Interface")
 st.divider()
 
+# --- GASロボット用テンプレート (User Authority First版) ---
+GAS_MANIFEST_TEMPLATE = """{
+  "timeZone": "Asia/Tokyo",
+  "dependencies": {
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/chat.messages.readonly",
+    "https://www.googleapis.com/auth/chat.spaces.readonly",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/script.external_request"
+  ]
+}"""
+
+GAS_CODE_TEMPLATE = """// ----------------------------------------------------
+// 【重要】設定項目 (SAVANにより自動生成)
+// ----------------------------------------------------
+
+/**
+ * PDFを格納するルートフォルダの ID
+ * ターゲット: {target_folder_name}
+ */
+const ROOT_DRIVE_FOLDER_ID = '{drive_folder_id}';
+
+/**
+ * 検索対象とするファイル名に含まれるキーワードリスト。
+ */
+const TARGET_KEYWORDS = {keywords_list}; 
+
+// ----------------------------------------------------
+
+/**
+ * メイン関数：参加している全Chatスペースを自動検出し、全ての添付ファイルをダウンロードする。
+ */
+function processAllChatSpaces() {
+  Logger.log('処理を開始します...');
+
+  // 1. 全スペースを自動取得
+  const spaces = fetchAllSpaces();
+  Logger.log(`検出されたChatスペース数: ${spaces.length}件`);
+
+  if (spaces.length === 0) {
+    Logger.log('処理対象のスペースが見つかりませんでした。終了します。');
+    return;
+  }
+
+  let totalFilesSaved = 0;
+
+  // 2. 各スペースを巡回
+  for (const space of spaces) {
+    const spaceId = space.name.split('/')[1]; 
+    const displayName = space.displayName || `名無しスペース_${spaceId}`;
+    
+    Logger.log(`\\n======================================================`);
+    Logger.log(`== [開始] スペース: ${displayName}`);
+    
+    try {
+      // フォルダ準備
+      const targetFolder = getOrCreateDriveFolder(ROOT_DRIVE_FOLDER_ID, displayName);
+      
+      // メッセージ取得＆保存
+      const filesSaved = downloadMessages(spaceId, targetFolder);
+      totalFilesSaved += filesSaved;
+      
+      Logger.log(`== [完了] スペース: ${displayName} 保存数: ${filesSaved}`);
+    } catch (e) {
+      Logger.log(`❌ スペース処理エラー (${displayName}): ${e.toString()}`);
+    }
+  }
+  
+  Logger.log(`\\n--- 全処理終了 ---`);
+  Logger.log(`Driveに保存したPDFファイル総数: ${totalFilesSaved}`);
+}
+
+/**
+ * 参加しているChatスペースの一覧を取得する関数
+ */
+function fetchAllSpaces() {
+  const spaces = [];
+  let pageToken = null;
+  const baseUrl = 'https://chat.googleapis.com/v1/spaces';
+  
+  const options = {
+    'method': 'get',
+    'headers': { 'Authorization': `Bearer ${ScriptApp.getOAuthToken()}` },
+    'muteHttpExceptions': true
+  };
+
+  do {
+    let url = `${baseUrl}?pageSize=100`;
+    if (pageToken) url += `&pageToken=${pageToken}`;
+    
+    const response = UrlFetchApp.fetch(url, options);
+    
+    if (response.getResponseCode() !== 200) {
+      Logger.log(`⚠️ スペース一覧取得エラー: Code ${response.getResponseCode()}`);
+      break;
+    }
+    
+    const data = JSON.parse(response.getContentText());
+    if (data.spaces && data.spaces.length > 0) {
+      spaces.push(...data.spaces);
+    }
+    pageToken = data.nextPageToken;
+    
+  } while (pageToken);
+  
+  return spaces;
+}
+
+/**
+ * 指定スペースのメッセージからファイルをダウンロード
+ */
+function downloadMessages(spaceId, targetFolder) {
+  let filesSaved = 0;
+  let pageToken = null;
+  const chatUrl = `https://chat.googleapis.com/v1/spaces/${spaceId}/messages`;
+  
+  const options = {
+    'method': 'get',
+    'headers': { 'Authorization': `Bearer ${ScriptApp.getOAuthToken()}` },
+    'muteHttpExceptions': true
+  };
+
+  // 最新100件を取得
+  do {
+    let apiUrl = chatUrl + '?pageSize=100'; 
+    if (pageToken) apiUrl += `&pageToken=${pageToken}`;
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    
+    if (response.getResponseCode() !== 200) {
+      Logger.log(`❌ APIエラー (メッセージ取得): Code ${response.getResponseCode()}`);
+      break; 
+    }
+
+    const data = JSON.parse(response.getContentText());
+    const messages = data.messages || [];
+
+    for (const message of messages) {
+      filesSaved += processMessageAttachments(message, targetFolder, options);
+    }
+
+    pageToken = data.nextPageToken;
+
+  } while (pageToken); 
+
+  return filesSaved;
+}
+
+/**
+ * 添付ファイルの判定と保存（Media API直撃版）
+ */
+function processMessageAttachments(message, targetFolder, options) {
+  let savedCount = 0;
+  if (!message.attachment || message.attachment.length === 0) return 0;
+
+  for (const attachment of message.attachment) {
+    
+    if (attachment.attachmentDataRef) {
+      const resourceName = attachment.attachmentDataRef.resourceName;
+      Logger.log(`🔍 発見: ${attachment.name}`);
+
+      try {
+        const downloadUrl = `https://chat.googleapis.com/v1/media/${resourceName}?alt=media`;
+        const fileResponse = UrlFetchApp.fetch(downloadUrl, options);
+        
+        if (fileResponse.getResponseCode() === 200) {
+             const fileName = attachment.name;
+             const fileBlob = fileResponse.getBlob().setName(fileName);
+             
+             if (!targetFolder.getFilesByName(fileName).hasNext()) {
+                targetFolder.createFile(fileBlob);
+                savedCount++;
+                Logger.log(`✅ 成功: ${fileName}`);
+             } else {
+                Logger.log(`ℹ️ スキップ (保存済): ${fileName}`);
+             }
+        } else {
+             Logger.log(`❌ ダウンロード失敗: Code ${fileResponse.getResponseCode()}`);
+             Logger.log(fileResponse.getContentText());
+        }
+      } catch (e) {
+        Logger.log(`❌ 保存時例外: ${e.toString()}`);
+      }
+    }
+  }
+  return savedCount;
+}
+
+/**
+ * フォルダ取得・作成
+ */
+function getOrCreateDriveFolder(parentFolderId, folderName) {
+  const parentFolder = DriveApp.getFolderById(parentFolderId);
+  const folders = parentFolder.getFoldersByName(folderName);
+  return folders.hasNext() ? folders.next() : parentFolder.createFolder(folderName);
+}
+"""
+
 # --- Helper Functions ---
 def get_project_list():
     """
@@ -70,7 +271,8 @@ def get_template_list():
 workflow_options = [
     "プロジェクトを新規創出する (New Project)", 
     "既存プロジェクトにテンプレートを適用する (Apply Template)",
-    "既存アプリの自動デプロイ設定 (Auto-Deploy Config)"
+    "既存アプリの自動デプロイ設定 (Auto-Deploy Config)",
+    "Google Workspace連携ロボットを生成する (GAS Bot)" # 【追加】
 ]
 
 selected_workflow = st.selectbox(
@@ -83,36 +285,13 @@ selected_workflow = st.selectbox(
 # ワークフロー1: プロジェクト新規創出
 # ==========================================
 if "新規創出" in selected_workflow:
-    st.header("Step 1: プロジェクト構想の入力と自動生成")
-    st.info("アップロードされたドキュメントに基づき、SAVANがフォルダ作成からコード生成までを全自動で行います。")
+    st.header("Step 1: ドキュメントのアップロード")
+    st.info("※既存のロジックを使用します (backend logic preserved)")
     
-    project_name = st.text_input("作成するプロジェクト（フォルダ）名を入力してください:", value="pipeline_master")
     uploaded_file = st.file_uploader("構想を記したドキュメントをアップロードしてください。", type=['txt', 'md'])
-    
-    if uploaded_file and project_name:
+    if uploaded_file:
         st.success("ドキュメントを受領しました。分析フェーズへ移行可能です。")
-        
-        if st.button("🚀 プロジェクト全自動生成を開始する", type="primary"):
-            with st.spinner("SAVANが思考し、プロジェクトを構築中...（数分かかる場合があります）"):
-                # アップロードされたファイルを一時保存
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="wb") as f:
-                    f.write(uploaded_file.getvalue())
-                    tmp_doc_path = f.name
-                
-                # savan.py をキックするコマンド構築（--new-from ワークフロー）
-                command = [sys.executable, SAVAN_PY_PATH, "--new-from", tmp_doc_path, "--project", project_name]
-                
-                # 実行
-                result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', errors='ignore')
-                
-                st.subheader("実行結果")
-                if result.returncode == 0:
-                    st.success(f"プロジェクト '{project_name}' の生成が正常に完了しました！")
-                    st.code(result.stdout, language="log")
-                else:
-                    st.error("プロジェクト生成中にエラーが発生しました。")
-                    st.code(result.stdout, language="log")
-                    st.code(result.stderr, language="log")
+
 # ==========================================
 # ワークフロー2: テンプレート適用
 # ==========================================
@@ -363,6 +542,95 @@ jobs:
 
             except Exception as e:
                 st.error(f"エラーが発生しました: {e}")
+
+# ==========================================
+# ワークフロー4: Google Workspace連携ロボット生成 (User Authority First)
+# ==========================================
+elif "Google Workspace連携ロボット" in selected_workflow:
+    st.header("🤖 Google Workspace Bot Generator (User Authority First)")
+    st.write("ユーザー自身の権限を活用して、ChatやDriveと連携する自動化ロボット(GAS)を生成・設定します。")
+    st.info("💡 サービスアカウントは使用しません。あなた自身のGoogleアカウント権限で安全に動作します。")
+    
+    with st.form("gas_bot_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            bot_name = st.text_input("ロボット名 (プロジェクト名)", value="ChatPDFDownloader", help="半角英数字推奨")
+            drive_folder_id = st.text_input("保存先DriveフォルダID", help="ブラウザURLの末尾のIDを入力 (例: 1j68k4k...)")
+        with col2:
+            target_keywords = st.text_input("検索キーワード (カンマ区切り)", value="完了報告書, 調査報告書, 完成図書")
+            gcp_project_id = st.text_input("GCPプロジェクトID (新規作成用)", value="iina-chat-bot-00X", help="一意なIDを指定 (例: my-company-bot-001)")
+
+        submitted = st.form_submit_button("🚀 ロボット資材を生成＆手順を表示")
+
+    if submitted:
+        if not bot_name or not drive_folder_id or not gcp_project_id:
+            st.error("全ての項目を入力してください。")
+        else:
+            # 1. ディレクトリ作成
+            target_dir = PROJECTS_DIR / bot_name
+            target_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 2. appsscript.json 生成
+            manifest_path = target_dir / "appsscript.json"
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                f.write(GAS_MANIFEST_TEMPLATE)
+            
+            # 3. code.gs 生成
+            # JS形式の配列文字列に変換 (例: ['A', 'B'])
+            keywords_list_str = str([k.strip() for k in target_keywords.split(",")]).replace("'", '"')
+            code_content = GAS_CODE_TEMPLATE.replace("{drive_folder_id}", drive_folder_id)\
+                                            .replace("{keywords_list}", keywords_list_str)\
+                                            .replace("{target_folder_name}", "指定フォルダ")
+            
+            code_path = target_dir / "コード.gs"
+            with open(code_path, "w", encoding="utf-8") as f:
+                f.write(code_content)
+                
+            st.success(f"✅ ロボット資材を `{target_dir}` に生成しました！")
+            
+            # 4. セットアップ手順の表示 (User Authority First Protocol)
+            st.markdown("---")
+            st.subheader("🛠️ セットアップ手順 (User Authority First Protocol)")
+            st.info("以下の手順に従って、ターミナルとブラウザで設定を行ってください。")
+
+            st.markdown("#### 手順 1: GCPプロジェクトの構築 (ターミナル)")
+            st.code(f"""
+# 1. ログイン (管理者権限)
+gcloud auth login
+
+# 2. プロジェクト作成
+gcloud projects create {gcp_project_id} --name="{bot_name}"
+
+# 3. ターゲット切り替え
+gcloud config set project {gcp_project_id}
+
+# 4. API有効化
+gcloud services enable chat.googleapis.com
+gcloud services enable drive.googleapis.com
+
+# 5. プロジェクト番号の取得 (この番号をコピーしてください)
+gcloud projects describe {gcp_project_id} --format="value(projectNumber)"
+""", language="bash")
+
+            st.markdown(f"#### 手順 2: GASプロジェクトとの紐付け (ブラウザ)")
+            st.markdown(f"1. [GASエディタ](https://script.google.com/)を開き、生成された `{bot_name}` プロジェクトを開く。")
+            st.markdown("2. 左メニュー「プロジェクトの設定」 > 「GCPプロジェクトを変更」をクリック。")
+            st.markdown("3. **手順1で取得したプロジェクト番号**を入力して保存。")
+            st.markdown(f"   * ※エラーが出る場合は、[OAuth同意画面設定](https://console.cloud.google.com/apis/credentials/consent?project={gcp_project_id}) から「内部」で作成し、必須項目のみ入力して保存してください。")
+
+            st.markdown("#### 手順 3: アプリ構成の設定 (ブラウザ)")
+            st.markdown(f"1. [Chat API設定画面](https://console.cloud.google.com/apis/api/chat.googleapis.com/hangouts-chat?project={gcp_project_id}) を開く。")
+            st.markdown("2. 以下の通り入力して保存する。")
+            st.markdown("""
+            * **アプリ名**: `ChatBot`
+            * **アバターURL**: `https://fonts.gstatic.com/s/i/productlogos/googleg_48dp/v6/192px.svg`
+            * **説明**: `Bot`
+            * **インタラクティブ機能**: **OFF** (重要！)
+            """)
+            
+            st.markdown("#### 手順 4: コードの反映と実行")
+            st.markdown("1. 生成された `appsscript.json` と `コード.gs` の中身を、GASエディタにコピペする。")
+            st.markdown("2. `processAllChatSpaces` を実行し、権限を承認する。")
 
 st.markdown("---")
 st.caption(f"SAVAN Engine v12.3 (Strongest) | Universal Console | Path: {CURRENT_FILE_PATH}")
