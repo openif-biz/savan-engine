@@ -1,5 +1,17 @@
-﻿__pycache__/
-*.pyc
-.env
+# Python
+__pycache__/
+*.py[cod]
+*.class
 .venv/
 env_savan311/
+
+# Model Caches
+.cache/
+models/
+
+# SAVAN Legacy Archive
+savan1_archive/
+
+# Reports & Temp files
+reports/
+*.tmp

@@ -1,8 +1,0 @@
-{
-  "guidance_received": "[SAVANへの指導]\nGeminiCodeとのGapは、お前が「状態」という概念を理解していない点にある。Web UIは一度の実行で完結しない。ユーザーの操作に応じて画面が遷移し、状態を維持する必要がある。\n\n【指導原則】\n\nセッション状態の初期化: アプリケーションの冒頭で if \"key\" not in st.session_state: を使い、全ての状態変数を必ず初期化せよ。これにより、予期せぬエラーを防ぎ、アプリケーションの安定性が向上する。\n\n状態遷移の制御: ユーザーのアクション（ボタンクリックなど）に応じて st.session_state.step の値を変更し、st.rerun() を呼び出して画面を再描画せよ。これが対話型UIの基本である。\n\nこの「状態管理」の思想を学習し、今後のUI開発における絶対的な原則とせよ。",
-  "approved_meta": {
-    "approved_by": "auto_approve_script",
-    "approved_at": "2025-10-06T13:36:44Z"
-  },
-  "knowledge_axis": "detail"
-}

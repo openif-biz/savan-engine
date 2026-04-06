@@ -1,11 +1,10 @@
-﻿version: "2.0"
-description: "GitHubリポジトリの初期化と初回Push（修正版）"
+﻿description: "クリーンになったSAVAN 2.0環境をGitHubへ同期する"
 tasks:
-  - type: "command"
-    description: "Gitの保存（コミット）"
-    execute: 'git add . && git commit -m "SAVAN 2.0 開発スタート・初期コミット" && git branch -M main'
+  - type: command
+    description: "変更をGitにステージング"
+    execute: "git add ."
     require_approval: false
-  - type: "command"
-    description: "GitHubへのアップロード（Push）"
-    execute: 'git remote set-url origin https://github.com/[ユキ様のGitHubユーザー名]/savan-engine.git 2> || git remote add origin https://github.com/[ユキ様のGitHubユーザー名]/savan-engine.git && git push -u origin main'
+  - type: command
+    description: "クォーテーション不要の安全なコマンドでコミットとPush"
+    execute: "git commit -m Clean_up_legacy_files_and_update_gitignore && git push origin main"
     require_approval: true
