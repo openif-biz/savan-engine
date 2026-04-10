@@ -7,8 +7,9 @@ from datetime import datetime
 import subprocess
 import traceback
 
-ROOT_DIR = r'C:\Users\Owner\local_savan'
-ENGINE_DIR = os.path.join(ROOT_DIR, 'savan-engine')
+# [修正箇所1] ROOT_DIRを仕様書(Sanctuary)に準拠して固定化
+ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = r"C:\Users\Owner\local_savan"
 REPORT_DIR = os.path.join(ENGINE_DIR, 'reports')
 KNOWLEDGE_BASE_PATH = os.path.join(ENGINE_DIR, 'savan_knowledge_base.json')
 
@@ -157,11 +158,15 @@ def scan_all_environments():
             if git_status and 'not a git' not in git_status.lower():
                 sec += f"\nGit Status ({proj}):\n{git_status}\n"
 
-            for file in os.listdir(proj_path):
-                if file.endswith('.log'):
-                    log_path = os.path.join(proj_path, file)
-                    sec += f"\nError Log ({proj}/{file}):\n"
-                    sec += safe_read(log_path, tail_chars=1000) + "\n"
+            # [修正箇所2] アクセス権限エラー（WinError 5）でクラッシュしないよう例外処理を追加
+            try:
+                for file in os.listdir(proj_path):
+                    if file.endswith('.log'):
+                        log_path = os.path.join(proj_path, file)
+                        sec += f"\nError Log ({proj}/{file}):\n"
+                        sec += safe_read(log_path, tail_chars=1000) + "\n"
+            except Exception as e:
+                sec += f"\n[Error accessing files in {proj}: {e}]\n"
     except Exception as e:
         sec += f"[Error in Section 4: {e}]\n"
     append_report(report_path, sec + "\n")
